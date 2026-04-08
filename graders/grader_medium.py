@@ -40,6 +40,6 @@ def grade(action: Action, state: dict, step: int) -> Reward:
         if last_two[0] == last_two[1] == action.verdict:
             breakdown.loop_penalty = -0.10
 
-    total = max(0.0, min(1.0, sum(vars(breakdown).values())))
+    total = max(0.001, min(0.999, sum(vars(breakdown).values())))
     return Reward(total=total, breakdown=breakdown, message='Medium review graded',
                   is_terminal=(action.verdict in ['approve','request_changes']))

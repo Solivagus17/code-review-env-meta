@@ -70,14 +70,22 @@ class CodeReviewEnv:
             reward.total = max(0.0, reward.total - 0.10)
             reward.message += " (Max steps exceeded)"
             
-        self.cumulative_reward += reward.total
-        self.step_count        += 1
-        
         self.done = (
             reward.is_terminal or
-            self.step_count >= self.task.max_steps or
+            self.step_count + 1 >= self.task.max_steps or
             action.verdict in [ReviewVerdict.APPROVE, ReviewVerdict.REQUEST_CHANGES]
         )
+        
+        # Enforce strict bounds on total task score for the OpenEnv validator
+        if self.done:
+            projected_total = self.cumulative_reward + reward.total
+            if projected_total <= 0.0:
+                reward.total += 0.01
+            elif projected_total >= 1.0:
+                reward.total -= (projected_total - 0.99)
+                
+        self.cumulative_reward += reward.total
+        self.step_count        += 1
         
         entry = ReviewHistoryEntry(
             step=self.step_count, action_type=action.verdict,

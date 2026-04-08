@@ -1,5 +1,5 @@
 from fastapi.testclient import TestClient
-from app import app
+from server.app import app
 import pytest
 
 client = TestClient(app)
@@ -33,7 +33,7 @@ def test_step_easy():
     r = client.post('/step', json=action)
     assert r.status_code == 200
     result = r.json()
-    assert 0.0 <= result['reward']['total'] <= 1.0
+    assert 0.0 < result['reward']['total'] < 1.0
 
 def test_state():
     client.post('/reset', json={'task_id': 'medium'})

@@ -110,6 +110,6 @@ def grade(action: Action, state: dict, step: int) -> Reward:
         breakdown.false_positive_penalty,
         breakdown.loop_penalty
     ])
-    total = max(0.0, min(1.0, total))
+    total = max(0.001, min(0.999, total))
     return Reward(total=total, breakdown=breakdown, message='Hard review graded',
                   is_terminal=(action.verdict in ['approve','request_changes']))

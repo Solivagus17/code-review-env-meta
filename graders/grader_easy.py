@@ -28,7 +28,7 @@ def grade(action: Action, state: dict, step: int) -> Reward:
 
     total = sum([breakdown.verdict_accuracy, breakdown.bug_detection,
                  breakdown.false_positive_penalty, breakdown.efficiency_bonus])
-    total = max(0.0, min(1.0, total))
+    total = max(0.001, min(0.999, total))
     return Reward(total=total, breakdown=breakdown,
                   message=f'Found {found}/{len(bugs)} bugs',
                   is_terminal=(action.verdict in ['approve','request_changes']))

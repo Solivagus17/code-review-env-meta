@@ -59,33 +59,39 @@ class CodeReviewEnv:
         
         reward = self.task.grader.grade(action, self.state_data, self.step_count)
         
-        # PRD empty comment penalty check:
-        # Pydantic validates min_length=10, but if we catch it here or we rely on pydantic error:
-        # Pydantic raises ValueError before hitting this code if it is parsed properly via fastapi.
+        # reward.total from grader is the ABSOLUTE task score based on state.
+        # We must return the DELTA as the step reward for the OpenEnv validator tracking.
+        absolute_total = reward.total
         
         # Max steps exceeded penalty
         max_steps_exceeded = (self.step_count + 1) >= self.task.max_steps
-        if max_steps_exceeded and reward.is_terminal == False and action.verdict not in [ReviewVerdict.APPROVE, ReviewVerdict.REQUEST_CHANGES]:
+        if max_steps_exceeded and not reward.is_terminal and action.verdict not in [ReviewVerdict.APPROVE, ReviewVerdict.REQUEST_CHANGES]:
             reward.is_terminal = True
-            reward.total = max(0.0, reward.total - 0.10)
+            absolute_total = max(0.001, absolute_total - 0.10)
             reward.message += " (Max steps exceeded)"
-            
+
+        step_reward = absolute_total - self.cumulative_reward
+        reward.total = step_reward
+        
+        self.cumulative_reward = absolute_total
+        self.step_count       += 1
+        
         self.done = (
             reward.is_terminal or
-            self.step_count + 1 >= self.task.max_steps or
+            self.step_count >= self.task.max_steps or
             action.verdict in [ReviewVerdict.APPROVE, ReviewVerdict.REQUEST_CHANGES]
         )
         
         # Enforce strict bounds on total task score for the OpenEnv validator
         if self.done:
-            projected_total = self.cumulative_reward + reward.total
-            if projected_total <= 0.0:
-                reward.total += 0.01
-            elif projected_total >= 1.0:
-                reward.total -= (projected_total - 0.99)
-                
-        self.cumulative_reward += reward.total
-        self.step_count        += 1
+            if self.cumulative_reward >= 1.0:
+                correction = self.cumulative_reward - 0.999
+                reward.total -= correction
+                self.cumulative_reward = 0.999
+            elif self.cumulative_reward <= 0.0:
+                correction = 0.001 - self.cumulative_reward
+                reward.total += correction
+                self.cumulative_reward = 0.001
         
         entry = ReviewHistoryEntry(
             step=self.step_count, action_type=action.verdict,

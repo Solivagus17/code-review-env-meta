@@ -66,7 +66,7 @@ class RewardBreakdown(BaseModel):
     efficiency_bonus:     float = 0.0   # Bonus for finishing before max_steps
 
 class Reward(BaseModel):
-    total:     float = Field(ge=0.0, le=1.0)
+    total:     float
     breakdown: RewardBreakdown
     message:   str
     is_terminal:bool = False

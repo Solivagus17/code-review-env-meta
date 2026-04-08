@@ -62,3 +62,10 @@ def get_state():
     if current_env is None:
         raise HTTPException(status_code=400, detail="Environment not initialized.")
     return current_env.state()
+
+def main():
+    import uvicorn
+    uvicorn.run("server.app:app", host="0.0.0.0", port=7860)
+
+if __name__ == "__main__":
+    main()

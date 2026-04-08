@@ -1,15 +1,17 @@
+import sys, os
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from environment import CodeReviewEnv
 from models import Action
+from typing import Optional
 
 app = FastAPI(title="CodeReviewEnv")
 
 # In-memory global environment to satisfy the OpenEnv stateless API model (partially).
 # In a real app we might use session IDs, but the PRD describes single-tenant usage for inference baseline.
 current_env = None
-
-from typing import Optional
 
 class ResetRequest(BaseModel):
     task_id: str = "easy"

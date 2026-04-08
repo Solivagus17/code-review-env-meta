@@ -9,8 +9,10 @@ app = FastAPI(title="CodeReviewEnv")
 # In a real app we might use session IDs, but the PRD describes single-tenant usage for inference baseline.
 current_env = None
 
+from typing import Optional
+
 class ResetRequest(BaseModel):
-    task_id: str
+    task_id: str = "easy"
 
 @app.get("/")
 def get_root():
@@ -25,9 +27,11 @@ def get_tasks():
     return ["easy", "medium", "hard"]
 
 @app.post("/reset")
-def post_reset(req: ResetRequest):
+def post_reset(req: Optional[ResetRequest] = None):
     global current_env
     try:
+        if req is None:
+            req = ResetRequest()
         current_env = CodeReviewEnv(task_id=req.task_id)
         obs = current_env.reset()
         return obs.model_dump()

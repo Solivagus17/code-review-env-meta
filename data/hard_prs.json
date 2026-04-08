@@ -1,0 +1,31 @@
+[
+  {
+    "pr_id": "hard_001",
+    "pr_title": "Payment processing",
+    "pr_description": "Initial implementation of the payment processing webhook and ledger update.",
+    "code_diff": "--- a/payments.py\n+++ b/payments.py\n@@ -1,5 +1,18 @@\n+import pickle\n+import base64\n+\n+def process_webhook(request):\n+    # Broken Auth: No signature verification on the incoming webhook\n+    payload = request.body.decode('utf-8')\n+    data = pickle.loads(base64.b64decode(payload)) # Insecure Deserialization\n+    \n+    user_id = data.get('user_id')\n+    amount = data.get('amount')\n+    \n+    # IDOR: Relying on user_id from the payload without verifying ownership/authorization\n+    account = db.get_account_for_user(user_id)\n+    \n+    # SQLi: Unsafe interpolation in query execution\n+    db.execute(f\"UPDATE ledger SET balance = balance + {amount} WHERE account_id = '{account.id}'\")\n+    \n+    return {'status': 'success'}",
+    "ground_truth": {
+      "verdict": "request_changes",
+      "issues": [
+        {"line": 5, "category": "security", "severity": "high", "description": "Broken Authentication: No verification of webhook signature or origin."},
+        {"line": 7, "category": "security", "severity": "critical", "description": "Insecure Deserialization: Unpickling untrusted payload can lead to RCE."},
+        {"line": 13, "category": "security", "severity": "high", "description": "IDOR: Trusting user_id from payload allows crediting arbitrary accounts."},
+        {"line": 16, "category": "security", "severity": "critical", "description": "SQL Injection: Formatting user input directly into SQL statement."}
+      ]
+    }
+  },
+  {
+    "pr_id": "hard_002",
+    "pr_title": "API gateway rewrite",
+    "pr_description": "New gateway handling routing and error pages.",
+    "code_diff": "--- a/gateway.py\n+++ b/gateway.py\n@@ -10,12 +10,18 @@\n+def handle_routing(request):\n+    route = request.args.get('route', 'index')\n+    # Missing Rate Limiting\n+\n+    # Path Traversal\n+    with open(f\"/var/www/html/views/{route}.html\", \"r\") as f:\n+        template = f.read()\n+        \n+    # XSS: Reflecting unescaped user input (route) in the output\n+    if not template:\n+        return f\"<h1>Error: Route {route} not found</h1>\"\n+        \n+    return template",
+    "ground_truth": {
+      "verdict": "request_changes",
+      "issues": [
+        {"line": 11, "category": "security", "severity": "medium", "description": "Missing Rate Limiting: API gateway must throttle requests to prevent DoS."},
+        {"line": 15, "category": "security", "severity": "high", "description": "Path Traversal: User input in file path without sanitisation allows reading arbitrary files."},
+        {"line": 20, "category": "security", "severity": "high", "description": "Cross-Site Scripting (XSS): Unsafely reflecting user input in HTML response."}
+      ]
+    }
+  }
+]

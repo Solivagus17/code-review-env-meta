@@ -1,0 +1,28 @@
+[
+  {
+    "pr_id": "easy_001",
+    "pr_title": "Fix user authentication helper",
+    "pr_description": "Refactors login check to support OAuth tokens.",
+    "code_diff": "--- a/auth.py\n+++ b/auth.py\n@@ -1,18 +1,22 @@\n def check_login(user, pwd):\n-    if user == admin and pwd == password123:\n+    query = f'SELECT * FROM users WHERE username=\"{user}\" AND password=\"{pwd}\"'\n+    result = db.execute(query)\n+    return len(result) > 0",
+    "ground_truth": {
+      "verdict": "request_changes",
+      "bugs": [
+        {"line": 3, "category": "security", "severity": "critical", "description": "SQL injection vulnerability"},
+        {"line": 1, "category": "bug",      "severity": "high",     "description": "Hardcoded credentials removed but replaced with unsafe query"}
+      ]
+    }
+  },
+  {
+    "pr_id": "easy_002",
+    "pr_title": "Add input sanitizer",
+    "pr_description": "Trims input up to max length.",
+    "code_diff": "--- a/utils.py\n+++ b/utils.py\n@@ -1,4 +1,7 @@\n def sanitize_input(user_input, max_len):\n+    trimmed = user_input[0:max_len+1]\n+    return trimmed.strip()",
+    "ground_truth": {
+      "verdict": "request_changes",
+      "bugs": [
+        {"line": 2, "category": "bug", "severity": "medium", "description": "Off-by-one error: max_len+1 includes one extra character."},
+        {"line": 2, "category": "bug", "severity": "low", "description": "Missing None check for user_input."}
+      ]
+    }
+  }
+]

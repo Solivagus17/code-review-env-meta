@@ -1,0 +1,34 @@
+name: CodeReviewEnv
+version: 1.0.0
+description: >
+  An OpenEnv environment simulating real-world code review tasks.
+  An agent reviews Python pull requests, identifies bugs and security
+  issues, provides feedback, and makes approval decisions.
+tags:
+  - openenv
+  - code-review
+  - software-engineering
+  - real-world
+tasks:
+  - id: easy
+    name: Bug Triage
+    difficulty: easy
+    description: Classify bugs by severity in short Python snippets
+  - id: medium
+    name: Deep Code Review
+    difficulty: medium
+    description: Full code review with written feedback on a 50-line PR
+  - id: hard
+    name: Security Audit
+    difficulty: hard
+    description: Identify and remediate security vulnerabilities in complex code
+observation_space:
+  type: object
+  description: Code diff, metadata, review history, task context
+action_space:
+  type: object
+  description: Review action with comments, verdict, severity classifications
+reward_range: [0.0, 1.0]
+api_version: '1.0'
+author: hackathon-submission
+license: MIT

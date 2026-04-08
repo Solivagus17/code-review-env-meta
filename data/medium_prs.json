@@ -1,0 +1,31 @@
+[
+  {
+    "pr_id": "med_001",
+    "pr_title": "Refactor user service",
+    "pr_description": "Extract user validation logic and batch loading.",
+    "code_diff": "--- a/service.py\n+++ b/service.py\n@@ -10,14 +10,25 @@\n-def update_user(id, data):\n+def update_user(user_id, data):\n+    users = db.get_users()\n+    user = next((u for u in users if u.id == user_id), None)\n+    if user == None:\n+        return False\n+    \n+    for key in data.keys():\n+        if key == 'email' and '@' not in data[key]:\n+            pass # Ignore invalid emails for now\n+        else:\n+            setattr(user, key, data[key])\n+    \n+    db.save(user)\n+    return True",
+    "ground_truth": {
+      "verdict": "request_changes",
+      "issues": [
+        {"line": 12, "category": "performance", "severity": "medium", "description": "Fetches all users into memory instead of querying by ID."},
+        {"line": 14, "category": "style", "severity": "low", "description": "Use 'is None' instead of '== None'."},
+        {"line": 18, "category": "logic", "severity": "high", "description": "Silently ignores invalid emails without returning an error or throwing an exception."},
+        {"line": 17, "category": "logic", "severity": "medium", "description": "Iterating over data.keys() can be optimized, but the logic flaw is allowing arbitrary keys to be set."},
+        {"line": 17, "category": "style", "severity": "low", "description": "Using data.keys() instead of data.items() is unpythonic."},
+        {"line": 13, "category": "logic", "severity": "low", "description": "If users list is huge, next() is fine but fetching all users in line 12 is the root logic issue. Let's call the lack of attribute validation a logic flaw."}
+      ]
+    }
+  },
+  {
+    "pr_id": "med_002",
+    "pr_title": "Add caching layer",
+    "pr_description": "Introduces basic in-memory caching to reduce DB load.",
+    "code_diff": "--- a/cache.py\n+++ b/cache.py\n@@ -1,5 +1,11 @@\n+cache = {}\n+\n+def get_user_cached(user_id):\n+    if user_id not in cache:\n+        user = db.get_user(user_id)\n+        cache[user_id] = user\n+    return cache[user_id]",
+    "ground_truth": {
+      "verdict": "request_changes",
+      "issues": [
+        {"line": 4, "category": "bug", "severity": "high", "description": "Race condition: multiple threads could check 'not in cache' simultaneously and hit the DB."}
+      ]
+    }
+  }
+]

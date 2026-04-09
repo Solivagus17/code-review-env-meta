@@ -53,7 +53,7 @@ class Action(BaseModel):
     overall_comment:  str = Field(min_length=10, max_length=2000)
     line_comments:    List[LineComment] = []
     suggested_fixes:  List[str] = []
-    confidence_score: float = Field(gt=0.0, lt=1.0, default=0.5)
+    confidence_score: float = Field(ge=0.0, le=1.0, default=0.5)
     reasoning:        Optional[str] = None
 
 class RewardBreakdown(BaseModel):

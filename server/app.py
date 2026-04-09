@@ -48,6 +48,7 @@ def post_step(action: Action):
     if current_env is None:
         raise HTTPException(status_code=400, detail="Environment not initialized. Call /reset first.")
     try:
+        action.confidence_score = max(0.001, min(0.999, action.confidence_score))
         obs, reward, done, info = current_env.step(action)
         reward_value = max(0.001, min(0.999, reward.total))
         obs_dict = obs.model_dump()

@@ -47,9 +47,13 @@ def post_step(action: Action):
         raise HTTPException(status_code=400, detail="Environment not initialized. Call /reset first.")
     try:
         obs, reward, done, info = current_env.step(action)
+        reward_dict = reward.model_dump()
+        reward_dict['total'] = max(0.001, min(0.999, reward_dict['total']))
+        obs_dict = obs.model_dump()
+        obs_dict['cumulative_reward'] = max(0.001, min(0.999, obs_dict['cumulative_reward']))
         return {
-            "observation": obs.model_dump(),
-            "reward": reward.model_dump(),
+            "observation": obs_dict,
+            "reward": reward_dict,
             "done": done,
             "info": info
         }

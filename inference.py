@@ -121,6 +121,7 @@ def run_task(task_id: str) -> float:
     }
     print(f'[END] {json.dumps(end_log)}', flush=True)
     
+    cum_reward = max(0.01, min(0.99, cum_reward))
     return cum_reward
 
 if __name__ == '__main__':

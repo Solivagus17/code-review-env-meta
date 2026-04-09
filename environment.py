@@ -59,21 +59,24 @@ class CodeReviewEnv:
         
         reward = self.task.grader.grade(action, self.state_data, self.step_count)
         
-        # reward.total from grader is the ABSOLUTE task score based on state.
-        # We must return the DELTA as the step reward for the OpenEnv validator tracking.
         absolute_total = reward.total
         
         # Max steps exceeded penalty
         max_steps_exceeded = (self.step_count + 1) >= self.task.max_steps
         if max_steps_exceeded and not reward.is_terminal and action.verdict not in [ReviewVerdict.APPROVE, ReviewVerdict.REQUEST_CHANGES]:
             reward.is_terminal = True
-            absolute_total = max(0.001, absolute_total - 0.10)
+            absolute_total = absolute_total - 0.10
             reward.message += " (Max steps exceeded)"
 
-        step_reward = absolute_total - self.cumulative_reward
-        reward.total = step_reward
-        
-        self.cumulative_reward = absolute_total
+        # The validator inspects `reward.total` directly as the task score.
+        # It must be perfectly bounded (0, 1).
+        if absolute_total >= 1.0:
+            absolute_total = 0.999
+        elif absolute_total <= 0.0:
+            absolute_total = 0.001
+
+        reward.total = absolute_total
+        self.cumulative_reward = reward.total
         self.step_count       += 1
         
         self.done = (
@@ -81,17 +84,6 @@ class CodeReviewEnv:
             self.step_count >= self.task.max_steps or
             action.verdict in [ReviewVerdict.APPROVE, ReviewVerdict.REQUEST_CHANGES]
         )
-        
-        # Enforce strict bounds on total task score for the OpenEnv validator
-        if self.done:
-            if self.cumulative_reward >= 1.0:
-                correction = self.cumulative_reward - 0.999
-                reward.total -= correction
-                self.cumulative_reward = 0.999
-            elif self.cumulative_reward <= 0.0:
-                correction = 0.001 - self.cumulative_reward
-                reward.total += correction
-                self.cumulative_reward = 0.001
         
         entry = ReviewHistoryEntry(
             step=self.step_count, action_type=action.verdict,

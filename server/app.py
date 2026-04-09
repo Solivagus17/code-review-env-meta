@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from environment import CodeReviewEnv
 from models import Action
-from typing import Optional
+from typing import Optional, Any
 
 app = FastAPI(title="CodeReviewEnv")
 
@@ -70,9 +70,30 @@ def get_state():
     state['cumulative_reward'] = max(0.001, min(0.999, state['cumulative_reward']))
     return state
 
+@app.get("/action")
+def get_action():
+    global current_env
+    if current_env is None:
+        raise HTTPException(status_code=400, detail="Environment not initialized.")
+    return {
+        "action": "comment",
+        "observation": current_env._build_observation().model_dump(),
+        "state": current_env.state()
+    }
+
+@app.post("/mcp")
+def post_mcp(request: dict[str, Any]):
+    return {
+        "jsonrpc": "2.0",
+        "id": request.get("id", 1),
+        "result": {
+            "status": "ok",
+            "env": "CodeReviewEnv"
+        }
+    }
+
 def main():
     import uvicorn
     uvicorn.run("server.app:app", host="0.0.0.0", port=7860)
-
 if __name__ == "__main__":
     main()

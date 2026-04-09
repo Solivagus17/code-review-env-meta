@@ -68,15 +68,18 @@ class CodeReviewEnv:
             absolute_total = absolute_total - 0.10
             reward.message += " (Max steps exceeded)"
 
-        # The validator inspects `reward.total` directly as the task score.
-        # It must be perfectly bounded (0, 1).
+        # STRIKE 3 FIX: Enforce OpenEnv validator limits strictly BEFORE calculating delta.
+        # This guarantees that at any point in the episode, the mathematical sum of all
+        # previous step rewards never falls to exactly 0.0 or hits exactly 1.0.
         if absolute_total >= 1.0:
             absolute_total = 0.999
         elif absolute_total <= 0.0:
             absolute_total = 0.001
 
-        reward.total = absolute_total
-        self.cumulative_reward = reward.total
+        step_reward = absolute_total - self.cumulative_reward
+        reward.total = step_reward
+        
+        self.cumulative_reward = absolute_total
         self.step_count       += 1
         
         self.done = (

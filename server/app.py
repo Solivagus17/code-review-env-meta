@@ -51,6 +51,7 @@ def post_step(action: Action):
         reward_dict['total'] = max(0.001, min(0.999, reward_dict['total']))
         obs_dict = obs.model_dump()
         obs_dict['cumulative_reward'] = max(0.001, min(0.999, obs_dict['cumulative_reward']))
+        info['cumulative_reward'] = max(0.001, min(0.999, info['cumulative_reward']))
         return {
             "observation": obs_dict,
             "reward": reward_dict,
@@ -65,7 +66,9 @@ def get_state():
     global current_env
     if current_env is None:
         raise HTTPException(status_code=400, detail="Environment not initialized.")
-    return current_env.state()
+    state = current_env.state()
+    state['cumulative_reward'] = max(0.001, min(0.999, state['cumulative_reward']))
+    return state
 
 def main():
     import uvicorn

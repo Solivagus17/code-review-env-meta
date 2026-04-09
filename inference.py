@@ -112,6 +112,7 @@ def run_task(task_id: str) -> float:
         }
         print(f'[STEP] {json.dumps(step_log)}', flush=True)
 
+    cum_reward = max(0.01, min(0.99, cum_reward))
     end_log = {
         "task_id": task_id, 
         "total_steps": step, 
@@ -119,6 +120,9 @@ def run_task(task_id: str) -> float:
         "model": MODEL_NAME, 
         "status": "success"
     }
+    print(f'[END] {json.dumps(end_log)}', flush=True)
+    
+    return cum_reward
     print(f'[END] {json.dumps(end_log)}', flush=True)
     
     cum_reward = max(0.01, min(0.99, cum_reward))

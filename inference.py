@@ -99,14 +99,14 @@ def run_task(task_id: str) -> float:
         reward = result['reward']
         done = result['done']
         
-        cum_reward = result['observation'].get('cumulative_reward', cum_reward + reward['total'])
+        cum_reward = result['observation'].get('cumulative_reward', cum_reward + reward if isinstance(reward, float) else cum_reward + reward['total'])
         step += 1
         
         step_log = {
             "task_id": task_id, 
             "step": step, 
             "action_verdict": action.get('verdict', 'unknown'),
-            "reward": reward['total'],
+           "reward": reward if isinstance(reward, float) else reward['total'],
             "cumulative_reward": cum_reward,
             "done": done
         }

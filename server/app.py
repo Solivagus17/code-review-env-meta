@@ -36,7 +36,9 @@ def post_reset(req: Optional[ResetRequest] = None):
             req = ResetRequest()
         current_env = CodeReviewEnv(task_id=req.task_id)
         obs = current_env.reset()
-        return obs.model_dump()
+        obs_dict = obs.model_dump()
+        obs_dict['cumulative_reward'] = max(0.001, min(0.999, obs_dict['cumulative_reward']))
+        return obs_dict
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

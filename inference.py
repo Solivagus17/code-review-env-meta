@@ -112,6 +112,8 @@ def run_task(task_id: str) -> float:
         }
         print(f'[STEP] {json.dumps(step_log)}', flush=True)
 
+    if not isinstance(cum_reward, float) or not (cum_reward == cum_reward):
+        cum_reward = 0.5
     cum_reward = max(0.01, min(0.99, cum_reward))
     end_log = {
         "task_id": task_id, 

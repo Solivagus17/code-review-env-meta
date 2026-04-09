@@ -4,7 +4,7 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from environment import CodeReviewEnv
-from models import Action
+from models import Action, Observation
 from typing import Optional, Any
 
 app = FastAPI(title="CodeReviewEnv")
@@ -89,6 +89,29 @@ def post_mcp(request: dict[str, Any]):
         "result": {
             "status": "ok",
             "env": "CodeReviewEnv"
+        }
+    }
+
+@app.get("/metadata")
+def get_metadata():
+    return {
+        "name": "CodeReviewEnv",
+        "description": "A code review environment where an agent reviews pull requests and provides feedback."
+    }
+
+@app.get("/schema")
+def get_schema():
+    return {
+        "action": Action.model_json_schema(),
+        "observation": Observation.model_json_schema(),
+        "state": {
+            "type": "object",
+            "properties": {
+                "task_id": {"type": "string"},
+                "step_count": {"type": "integer"},
+                "done": {"type": "boolean"},
+                "cumulative_reward": {"type": "number"}
+            }
         }
     }
 

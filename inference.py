@@ -99,7 +99,7 @@ def run_task(task_id: str) -> float:
         reward = result['reward']
         done = result['done']
         
-        cum_reward += reward['total']
+        cum_reward = result['observation'].get('cumulative_reward', cum_reward + reward['total'])
         step += 1
         
         step_log = {

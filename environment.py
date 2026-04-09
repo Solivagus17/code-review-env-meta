@@ -88,8 +88,9 @@ class CodeReviewEnv:
         elif projected_sum <= 0.0:
             ideal_delta = 0.001 - self.cumulative_reward
 
-        reward.total = ideal_delta
-        self.cumulative_reward += reward.total
+        ideal_delta = max(0.0001, min(ideal_delta, 0.999))
+        reward.total = round(ideal_delta, 6)
+        self.cumulative_reward = round(self.cumulative_reward + reward.total, 6)
         self.step_count       += 1
         
         self.done = (

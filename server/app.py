@@ -70,7 +70,7 @@ def get_state():
     state['cumulative_reward'] = max(0.001, min(0.999, state['cumulative_reward']))
     return state
 
-@app.get("/action")
+@app.post("/action")
 def get_action():
     global current_env
     if current_env is None:

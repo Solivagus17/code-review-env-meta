@@ -59,39 +59,23 @@ class CodeReviewEnv:
         
         reward = self.task.grader.grade(action, self.state_data, self.step_count)
         
-        # 1. Calculate Target Absolute Score (Clamped strictly)
-        # We clamp the target absolute score to [0.01, 0.99] to give us room for nudges
-        target_abs = max(0.01, min(0.99, reward.total))
-        
         # Max steps exceeded penalty
         max_steps_exceeded = (self.step_count + 1) >= self.task.max_steps
         if max_steps_exceeded and not reward.is_terminal and action.verdict not in [ReviewVerdict.APPROVE, ReviewVerdict.REQUEST_CHANGES]:
             reward.is_terminal = True
-            target_abs = max(0.01, target_abs - 0.10)
+            reward.total = max(0.001, reward.total - 0.10)
             reward.message += " (Max steps exceeded)"
 
-        # 2. Calculate ideal delta
-        # reward.total in the response must be the delta that makes the SUM equal target_abs
-        ideal_delta = target_abs - self.cumulative_reward
-
-        # 3. Nudge logic (The "Anti-Zero" & "Anti-One" Guard)
-        # If the delta is exactly 0, provide a tiny positive signal (0.0001) 
-        # unless it would push the total sum to exactly 1.0 (impossible due to 0.99 clamp).
-        # This ensures the validator never sees a "0.0" score for any step.
-        if abs(ideal_delta) < 0.0001:
-            ideal_delta = 0.0001
+        # CRITICAL FIX: Ensure reward.total is ALWAYS strictly between 0 and 1
+        # Clamp to (0.001, 0.999) to avoid exact 0.0 or 1.0
+        reward.total = max(0.001, min(0.999, reward.total))
         
-        # 4. Final safety check for the sum
-        projected_sum = self.cumulative_reward + ideal_delta
-        if projected_sum >= 1.0:
-            ideal_delta = 0.999 - self.cumulative_reward
-        elif projected_sum <= 0.0:
-            ideal_delta = 0.001 - self.cumulative_reward
-
-        ideal_delta = max(0.0001, min(ideal_delta, 0.999))
-        reward.total = round(ideal_delta, 6)
         self.cumulative_reward = round(self.cumulative_reward + reward.total, 6)
-        self.step_count       += 1
+        
+        # Ensure cumulative reward also stays in valid range
+        self.cumulative_reward = max(0.001, min(0.999, self.cumulative_reward))
+        
+        self.step_count += 1
         
         self.done = (
             reward.is_terminal or

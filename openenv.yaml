@@ -21,19 +21,19 @@ tasks:
   - name: easy
     description: Classify bugs by severity in short Python snippets
     difficulty: easy
-    max_steps: 1
+    max_steps: 3
     reward_threshold: 0.5
 
   - name: medium
     description: Full code review with written feedback on a 50-line PR
     difficulty: medium
-    max_steps: 1
+    max_steps: 5
     reward_threshold: 0.5
 
   - name: hard
     description: Identify and remediate security vulnerabilities in complex code
     difficulty: hard
-    max_steps: 1
+    max_steps: 7
     reward_threshold: 0.5
 
 # ─────────────────────────────────────────────────────────────
@@ -41,21 +41,38 @@ tasks:
 # ─────────────────────────────────────────────────────────────
 action_space:
   type: object
-  description: "Review action with comments, verdict, severity classifications"
+  description: "Review action with verdict, comments, line annotations, and suggested fixes"
   fields:
-    review_text:
-      type: string
-      description: "Full code review explanation and feedback"
-    identified_lines:
-      type: array
-      items: integer
-      description: "List of line numbers containing issues"
     verdict:
       type: string
-      description: "Approval decision: approve, request_changes, or comment"
-    severity:
+      enum: ["approve", "request_changes", "comment", "needs_more_info"]
+      description: "Approval decision for the pull request"
+    overall_comment:
       type: string
-      description: "Bug severity classification: critical, major, minor, or info"
+      description: "Overall review feedback (min 10 characters)"
+    line_comments:
+      type: array
+      description: "Specific per-line annotations"
+      items:
+        type: object
+        fields:
+          line_number:
+            type: integer
+          comment:
+            type: string
+          severity:
+            type: string
+            enum: ["critical", "high", "medium", "low", "info"]
+          category:
+            type: string
+            enum: ["bug", "security", "style", "performance", "logic"]
+    suggested_fixes:
+      type: array
+      items: string
+      description: "List of concrete fix suggestions"
+    confidence_score:
+      type: number
+      description: "Agent confidence from 0.0 to 1.0"
 
 # ─────────────────────────────────────────────────────────────
 # Observation Space
@@ -64,25 +81,43 @@ observation_space:
   type: object
   description: "Code diff, metadata, review history, task context"
   fields:
+    task_id:
+      type: string
+      description: "Task difficulty: easy, medium, or hard"
+    pr_id:
+      type: string
+      description: "Unique pull request identifier"
+    pr_title:
+      type: string
+      description: "Title of the pull request"
+    pr_description:
+      type: string
+      description: "Description of the changes"
     code_diff:
       type: string
-      description: "The code changes to review"
-    metadata:
-      type: object
-      description: "PR metadata including author, title, description"
-    task_context:
-      type: string
-      description: "Instructions and context for the review task"
+      description: "The unified diff of code changes to review"
     step_number:
       type: integer
       description: "Current step number in the episode"
+    max_steps:
+      type: integer
+      description: "Maximum steps allowed for this task"
+    task_instructions:
+      type: string
+      description: "Specific instructions for the current review task"
+    done:
+      type: boolean
+      description: "Whether the episode has ended"
+    cumulative_reward:
+      type: number
+      description: "Accumulated reward for the episode so far"
 
 # ─────────────────────────────────────────────────────────────
 # Environment Properties
 # ─────────────────────────────────────────────────────────────
 reward_range: [0, 1]
-max_steps: 1
-episode_type: single-step
+max_steps: 7
+episode_type: multi-step
 
 # ─────────────────────────────────────────────────────────────
 # Endpoints (OpenEnv spec)
@@ -91,11 +126,11 @@ endpoints:
   reset:
     method: POST
     path: /reset
-    description: "Start a new episode. Body: {task: easy|medium|hard}"
+    description: "Start a new episode. Body: {task_id: easy|medium|hard}"
   step:
     method: POST
     path: /step
-    description: "Submit a review action. Returns reward and done flag."
+    description: "Submit a review action. Returns reward (float) and done flag."
   state:
     method: GET
     path: /state

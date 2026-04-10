@@ -9,9 +9,12 @@ from typing import Optional, Any
 
 app = FastAPI(title="CodeReviewEnv")
 
-# In-memory global environment to satisfy the OpenEnv stateless API model (partially).
-# In a real app we might use session IDs, but the PRD describes single-tenant usage for inference baseline.
 current_env = None
+
+def safe_clamp(val, lo=0.001, hi=0.999, fallback=0.5):
+    if val != val:  # NaN check
+        return fallback
+    return max(lo, min(hi, val))
 
 class ResetRequest(BaseModel):
     task_id: str = "easy"
@@ -37,7 +40,7 @@ def post_reset(req: Optional[ResetRequest] = None):
         current_env = CodeReviewEnv(task_id=req.task_id)
         obs = current_env.reset()
         obs_dict = obs.model_dump()
-        obs_dict['cumulative_reward'] = max(0.001, min(0.999, obs_dict['cumulative_reward']))
+        obs_dict['cumulative_reward'] = safe_clamp(obs_dict['cumulative_reward'])
         return obs_dict
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -48,12 +51,12 @@ def post_step(action: Action):
     if current_env is None:
         raise HTTPException(status_code=400, detail="Environment not initialized. Call /reset first.")
     try:
-        action.confidence_score = max(0.001, min(0.999, action.confidence_score))
+        action.confidence_score = safe_clamp(action.confidence_score)
         obs, reward, done, info = current_env.step(action)
-        reward_value = max(0.001, min(0.999, reward.total))
+        reward_value = safe_clamp(reward.total)
         obs_dict = obs.model_dump()
-        obs_dict['cumulative_reward'] = max(0.001, min(0.999, obs_dict['cumulative_reward']))
-        info['cumulative_reward'] = max(0.001, min(0.999, info['cumulative_reward']))
+        obs_dict['cumulative_reward'] = safe_clamp(obs_dict['cumulative_reward'])
+        info['cumulative_reward'] = safe_clamp(info['cumulative_reward'])
         return {
             "observation": obs_dict,
             "reward": reward_value,
@@ -69,7 +72,7 @@ def get_state():
     if current_env is None:
         raise HTTPException(status_code=400, detail="Environment not initialized.")
     state = current_env.state()
-    state['cumulative_reward'] = max(0.001, min(0.999, state['cumulative_reward']))
+    state['cumulative_reward'] = safe_clamp(state['cumulative_reward'])
     return state
 
 @app.post("/action")
@@ -120,5 +123,6 @@ def get_schema():
 def main():
     import uvicorn
     uvicorn.run("server.app:app", host="0.0.0.0", port=7860)
+
 if __name__ == "__main__":
     main()

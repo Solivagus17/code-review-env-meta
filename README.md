@@ -12,15 +12,15 @@
 ## Table of Contents
 
 - [Overview](#overview)
+- [Tasks](#tasks)
+- [Reward Function](#reward-function)
+- [Baseline Scores](#baseline-scores)
 - [Prerequisites](#prerequisites)
 - [Setup](#setup)
 - [Usage](#usage)
+- [Running Inference](#running-inference)
 - [Observation Space](#observation-space)
 - [Action Space](#action-space)
-- [Reward Function](#reward-function)
-- [Tasks](#tasks)
-- [Baseline Scores](#baseline-scores)
-- [Running Inference](#running-inference)
 - [OpenEnv Validation](#openenv-validation)
 - [Contributing](#contributing)
 - [License](#license)
@@ -36,6 +36,49 @@
 - Return a correct approval verdict (`approve`, `request_changes`, `comment`, or `needs_more_info`)
 
 The environment spans three difficulty tiers — from simple bug triage on short snippets to full OWASP security audits on realistic PRs. It is designed for use in RL training pipelines and agent evaluation benchmarks.
+
+-----
+
+## Tasks
+
+Three escalating challenges that push agents from basic classification to expert-level security reasoning:
+
+|ID      |Difficulty|Description                                            |Success Criteria                            |
+|--------|----------|-------------------------------------------------------|--------------------------------------------|
+|`easy`  |🟢 Easy    |Classify bugs by severity in short Python snippets     |≥ 80% bugs found + accurate verdict         |
+|`medium`|🟡 Medium  |Full code review with written feedback on a ~50-line PR|≥ 70% issues found + low false positive rate|
+|`hard`  |🔴 Hard    |Identify and remediate security vulnerabilities        |Find all OWASP risks + high comment quality |
+
+-----
+
+## Reward Function
+
+Rewards are **dense** — provided at every step rather than only at episode end. This avoids sparse-reward training instability and gives agents a richer learning signal throughout the episode.
+
+|Component                   |Description                                                         |
+|----------------------------|--------------------------------------------------------------------|
+|✅ **Verdict Accuracy**      |Correct verdict vs. ground truth, weighted by task difficulty       |
+|🐛 **Bug/Issue Detection**   |Points for flagging exact lines with matching severity              |
+|🔐 **Security Detection**    |2× multiplier for identifying OWASP vulnerabilities (hard task only)|
+|💬 **Comment Quality**       |Scored on word count and use of structured review terminology       |
+|🔧 **Fix Suggestions**       |Points awarded for proposing concrete code remediations             |
+|⚡ **Efficiency Bonus**      |Higher reward for completing the task in fewer steps                |
+|❌ **False Positive Penalty**|`-0.15` per hallucinated critical issue                             |
+|🔁 **Loop Penalty**          |`-0.10` to `-0.15` for submitting an identical verdict repeatedly   |
+
+-----
+
+## Baseline Scores
+
+Scores achieved by **Llama-3.3-70B** on each task — a useful reference point for evaluating your own agent:
+
+|Task                   |Min Score|Max Score|
+|-----------------------|---------|---------|
+|`easy` — Bug Triage    |0.70     |0.90     |
+|`medium` — Deep Review |0.50     |0.75     |
+|`hard` — Security Audit|0.25     |0.55     |
+
+Can your agent beat these? The hard tier leaves significant headroom.
 
 -----
 
@@ -113,6 +156,19 @@ curl http://localhost:7860/state
 
 -----
 
+## Running Inference
+
+Set your HuggingFace token and run the inference script:
+
+```bash
+export HF_TOKEN="your_hf_token_here"
+python inference.py
+```
+
+This will run the default model against all three task difficulties and print per-step rewards and a final episode summary.
+
+-----
+
 ## Observation Space
 
 The `Observation` model tracks the full state presented to the agent at each step:
@@ -155,58 +211,6 @@ The `Action` model defines what the agent can submit at each step:
 |`comment`    |`str`          |Feedback text                                                   |
 |`severity`   |`SeverityLevel`|`'critical'` | `'high'` | `'medium'` | `'low'` | `'info'`       |
 |`category`   |`str`          |`'bug'` | `'security'` | `'style'` | `'performance'` | `'logic'`|
-
------
-
-## Reward Function
-
-Rewards are **dense** — provided at every step rather than only at episode end. This avoids sparse-reward training instability.
-
-|Component                   |Description                                                         |
-|----------------------------|--------------------------------------------------------------------|
-|✅ **Verdict Accuracy**      |Correct verdict vs. ground truth, weighted by task difficulty       |
-|🐛 **Bug/Issue Detection**   |Points for flagging exact lines with matching severity              |
-|🔐 **Security Detection**    |2× multiplier for identifying OWASP vulnerabilities (hard task only)|
-|💬 **Comment Quality**       |Scored on word count and use of structured review terminology       |
-|🔧 **Fix Suggestions**       |Points awarded for proposing concrete code remediations             |
-|⚡ **Efficiency Bonus**      |Higher reward for completing the task in fewer steps                |
-|❌ **False Positive Penalty**|`-0.15` per hallucinated critical issue                             |
-|🔁 **Loop Penalty**          |`-0.10` to `-0.15` for submitting an identical verdict repeatedly   |
-
------
-
-## Tasks
-
-|ID      |Difficulty|Description                                            |Success Criteria                            |
-|--------|----------|-------------------------------------------------------|--------------------------------------------|
-|`easy`  |🟢 Easy    |Classify bugs by severity in short Python snippets     |≥ 80% bugs found + accurate verdict         |
-|`medium`|🟡 Medium  |Full code review with written feedback on a ~50-line PR|≥ 70% issues found + low false positive rate|
-|`hard`  |🔴 Hard    |Identify and remediate security vulnerabilities        |Find all OWASP risks + high comment quality |
-
------
-
-## Baseline Scores
-
-Scores achieved by **Llama-3.3-70B** on each task:
-
-|Task                   |Min Score|Max Score|
-|-----------------------|---------|---------|
-|`easy` — Bug Triage    |0.70     |0.90     |
-|`medium` — Deep Review |0.50     |0.75     |
-|`hard` — Security Audit|0.25     |0.55     |
-
------
-
-## Running Inference
-
-Set your HuggingFace token and run the inference script:
-
-```bash
-export HF_TOKEN="your_hf_token_here"
-python inference.py
-```
-
-This will run the default model against all three task difficulties and print per-step rewards and a final episode summary.
 
 -----
 

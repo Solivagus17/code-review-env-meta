@@ -59,7 +59,7 @@ class CodeReviewEnv:
         self.state_data        = self.task.get_initial_state()
         return self._build_observation()
 
-    def step(self, action: Action) -> tuple[Observation, Reward, bool, dict]:
+    def step(self, action: Action) -> tuple[Observation, float, bool, dict]:
         """Execute one review action. Returns (obs, reward, done, info)."""
         if self.done:
             raise ValueError('Environment is done. Call reset() first.')
@@ -90,20 +90,6 @@ class CodeReviewEnv:
         elif projected_sum <= 0.0:
             ideal_delta = 0.001 - self.cumulative_reward
 
-        # The hackathon validator might check if *every* step reward is strictly (0, 1).
-        # We must return a delta. If ideal_delta is negative or 0.0, it might violate the "not 0.0" rule.
-        # But if we force a minimum positive delta, the sum exceeds 1.0 easily.
-        # Let's map it safely. If delta is exactly 0.0, nudge it.
-        # Actually, if we just return the delta strictly, the task's final score (the sum) will be in (0,1).
-        
-        # NOTE: the error explicitly states "One or more task scores are out of range".
-        # A task score is the EPISODIC sum. Since we returned absolute score per step,
-        # our episodic sum was summing absolutes: 0.8 + 0.85 + 0.9 = 2.55 (Out of range!)
-        
-        # Wait, if we return negative deltas, the sum goes down. Is a negative task score allowed? No, (0, 1).
-        # Does the validator forbid negative PER-STEP rewards? 
-        # "Each task's score must be strictly between 0 and 1" implies the final cumulative reward.
-        
         reward.total = ideal_delta
         self.cumulative_reward += reward.total
         self.cumulative_reward = _strict_clamp(self.cumulative_reward)
@@ -124,8 +110,12 @@ class CodeReviewEnv:
         self.history.append(entry)
         
         obs  = self._build_observation()
-        info = {'step': self.step_count, 'cumulative_reward': _strict_clamp(self.cumulative_reward)}
-        return obs, reward, self.done, info
+        info = {
+            'step': self.step_count, 
+            'cumulative_reward': _strict_clamp(self.cumulative_reward),
+            'breakdown': reward.breakdown.model_dump()
+        }
+        return obs, float(reward.total), self.done, info
 
     def state(self) -> dict:
         """Return current internal state as a serialisable dict."""

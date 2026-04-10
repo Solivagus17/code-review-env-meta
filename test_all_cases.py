@@ -43,7 +43,7 @@ def test_basic_scenarios():
             )
             
             obs, reward, done, info = env.step(action)
-            score = reward.total
+            score = reward
             cumulative = info['cumulative_reward']
             
             # Check violations
@@ -130,7 +130,7 @@ def test_edge_cases():
             obs = env.reset()
             
             obs, reward, done, info = env.step(test_case['action'])
-            score = reward.total
+            score = reward
             cumulative = info['cumulative_reward']
             
             # Ensure the episodic sum is successfully controlled
@@ -187,7 +187,7 @@ def test_multi_step_accumulation():
             )
             
             obs, reward, done, info = env.step(action)
-            score = reward.total
+            score = reward
             cumulative = info['cumulative_reward']
             
             if cumulative <= 0.0 or cumulative >= 1.0:
@@ -233,7 +233,7 @@ def test_max_steps_penalty():
             )
             
             obs, reward, done, info = env.step(action)
-            score = reward.total
+            score = reward
             cumulative = info['cumulative_reward']
             
             if cumulative <= 0.0 or cumulative >= 1.0:

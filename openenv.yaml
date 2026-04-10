@@ -1,34 +1,109 @@
 name: CodeReviewEnv
-version: 1.0.0
+version: "1.0.0"
 description: >
   An OpenEnv environment simulating real-world code review tasks.
   An agent reviews Python pull requests, identifies bugs and security
   issues, provides feedback, and makes approval decisions.
+
+author: "Solivagus17"
+
 tags:
   - openenv
   - code-review
   - software-engineering
   - real-world
+  - python
+
+# ─────────────────────────────────────────────────────────────
+# Tasks
+# ─────────────────────────────────────────────────────────────
 tasks:
-  - id: easy
-    name: Bug Triage
-    difficulty: easy
+  - name: easy
     description: Classify bugs by severity in short Python snippets
-  - id: medium
-    name: Deep Code Review
-    difficulty: medium
+    difficulty: easy
+    max_steps: 1
+    reward_threshold: 0.5
+
+  - name: medium
     description: Full code review with written feedback on a 50-line PR
-  - id: hard
-    name: Security Audit
-    difficulty: hard
+    difficulty: medium
+    max_steps: 1
+    reward_threshold: 0.5
+
+  - name: hard
     description: Identify and remediate security vulnerabilities in complex code
-observation_space:
-  type: object
-  description: Code diff, metadata, review history, task context
+    difficulty: hard
+    max_steps: 1
+    reward_threshold: 0.5
+
+# ─────────────────────────────────────────────────────────────
+# Action Space
+# ─────────────────────────────────────────────────────────────
 action_space:
   type: object
-  description: Review action with comments, verdict, severity classifications
-reward_range: [0.0, 1.0]
-api_version: '1.0'
-author: hackathon-submission
+  description: "Review action with comments, verdict, severity classifications"
+  fields:
+    review_text:
+      type: string
+      description: "Full code review explanation and feedback"
+    identified_lines:
+      type: array
+      items: integer
+      description: "List of line numbers containing issues"
+    verdict:
+      type: string
+      description: "Approval decision: approve, request_changes, or comment"
+    severity:
+      type: string
+      description: "Bug severity classification: critical, major, minor, or info"
+
+# ─────────────────────────────────────────────────────────────
+# Observation Space
+# ─────────────────────────────────────────────────────────────
+observation_space:
+  type: object
+  description: "Code diff, metadata, review history, task context"
+  fields:
+    code_diff:
+      type: string
+      description: "The code changes to review"
+    metadata:
+      type: object
+      description: "PR metadata including author, title, description"
+    task_context:
+      type: string
+      description: "Instructions and context for the review task"
+    step_number:
+      type: integer
+      description: "Current step number in the episode"
+
+# ─────────────────────────────────────────────────────────────
+# Environment Properties
+# ─────────────────────────────────────────────────────────────
+reward_range: [0, 1]
+max_steps: 1
+episode_type: single-step
+
+# ─────────────────────────────────────────────────────────────
+# Endpoints (OpenEnv spec)
+# ─────────────────────────────────────────────────────────────
+endpoints:
+  reset:
+    method: POST
+    path: /reset
+    description: "Start a new episode. Body: {task: easy|medium|hard}"
+  step:
+    method: POST
+    path: /step
+    description: "Submit a review action. Returns reward and done flag."
+  state:
+    method: GET
+    path: /state
+    description: "Get current environment state."
+  health:
+    method: GET
+    path: /health
+    description: "Health check. Returns 200 OK when server is live."
+
+api_version: "1.0"
 license: MIT

@@ -78,21 +78,17 @@ def post_step(action: Action):
         action.confidence_score = safe_clamp(action.confidence_score)
         obs, reward, done, info = current_env.step(action)
 
-        # CRITICAL: Allow the per-step reward to be a raw delta (even negative or zero).
-        # We only strictly clamp cumulative episodic sums. The OpenEnv spec aggregates these delta rewards.
-        reward_value = float(reward)
-
         obs_dict = obs.model_dump()
         obs_dict['cumulative_reward'] = safe_clamp(obs_dict.get('cumulative_reward', 0))
 
         # OpenEnv protocol: observation should contain the reward
-        obs_dict['reward'] = reward_value
+        obs_dict['reward'] = reward.model_dump()
 
         info['cumulative_reward'] = safe_clamp(info.get('cumulative_reward', 0))
 
         return {
             "observation": obs_dict,
-            "reward": reward_value,    # Delta float, unbounded per step
+            "reward": reward.model_dump(),
             "done": done,
             "info": info
         }

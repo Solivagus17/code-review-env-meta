@@ -43,12 +43,22 @@ def test_basic_scenarios():
             )
             
             obs, reward, done, info = env.step(action)
-            score = reward
+            score = reward.total
             cumulative = info['cumulative_reward']
             
             # Check violations
-            # Removed per-step bounds check; only cumulative sum matters
-            print(f"    OK   Step {step+1}: score={score:.6f}, cumulative={cumulative:.6f}")
+            if score <= 0.0 or score >= 1.0:
+                violations.append({
+                    'test': 'basic',
+                    'task': task_id,
+                    'step': step + 1,
+                    'score': score,
+                    'cumulative': cumulative,
+                    'issue': f'Score {score} not in (0, 1)'
+                })
+                print(f"    FAIL Step {step+1}: score={score:.6f} (VIOLATION)")
+            else:
+                print(f"    OK   Step {step+1}: score={score:.6f}, cumulative={cumulative:.6f}")
             
             if cumulative <= 0.0 or cumulative >= 1.0:
                 violations.append({
@@ -130,19 +140,18 @@ def test_edge_cases():
             obs = env.reset()
             
             obs, reward, done, info = env.step(test_case['action'])
-            score = reward
+            score = reward.total
             cumulative = info['cumulative_reward']
             
-            # Ensure the episodic sum is successfully controlled
-            if cumulative <= 0.0 or cumulative >= 1.0:
+            if score <= 0.0 or score >= 1.0:
                 violations.append({
                     'test': test_case['name'],
                     'task': task_id,
                     'score': score,
                     'cumulative': cumulative,
-                    'issue': f'Cumulative {cumulative} not in (0, 1)'
+                    'issue': f'Score {score} not in (0, 1)'
                 })
-                print(f"    FAIL {task_id}: cum={cumulative:.6f} (VIOLATION)")
+                print(f"    FAIL {task_id}: score={score:.6f} (VIOLATION)")
             else:
                 print(f"    OK   {task_id}: score={score:.6f}, cumulative={cumulative:.6f}")
     
@@ -187,10 +196,20 @@ def test_multi_step_accumulation():
             )
             
             obs, reward, done, info = env.step(action)
-            score = reward
+            score = reward.total
             cumulative = info['cumulative_reward']
             
-            if cumulative <= 0.0 or cumulative >= 1.0:
+            if score <= 0.0 or score >= 1.0:
+                violations.append({
+                    'test': 'accumulation',
+                    'task': task_id,
+                    'step': step + 1,
+                    'score': score,
+                    'cumulative': cumulative,
+                    'issue': f'Score {score} not in (0, 1)'
+                })
+                print(f"    FAIL Step {step+1}: score={score:.6f} (VIOLATION)")
+            elif cumulative <= 0.0 or cumulative >= 1.0:
                 violations.append({
                     'test': 'accumulation',
                     'task': task_id,
@@ -233,19 +252,19 @@ def test_max_steps_penalty():
             )
             
             obs, reward, done, info = env.step(action)
-            score = reward
+            score = reward.total
             cumulative = info['cumulative_reward']
             
-            if cumulative <= 0.0 or cumulative >= 1.0:
+            if score <= 0.0 or score >= 1.0:
                 violations.append({
                     'test': 'max_steps',
                     'task': task_id,
                     'step': step + 1,
                     'score': score,
                     'cumulative': cumulative,
-                    'issue': f'Cumulative {cumulative} not in (0, 1)'
+                    'issue': f'Score {score} not in (0, 1)'
                 })
-                print(f"    FAIL Step {step+1}/{max_steps}: cumulative={cumulative:.6f} (VIOLATION)")
+                print(f"    FAIL Step {step+1}/{max_steps}: score={score:.6f} (VIOLATION)")
             else:
                 print(f"    OK   Step {step+1}/{max_steps}: score={score:.6f}, cumulative={cumulative:.6f}")
     
@@ -291,20 +310,16 @@ def test_server_endpoint():
             else:
                 score = reward
             
-            # Check the cumulative sum inside 'info' here instead from the API directly
-            cumulative_server = result['info']['cumulative_reward']
-            
-            if cumulative_server <= 0.0 or cumulative_server >= 1.0:
+            if score <= 0.0 or score >= 1.0:
                 violations.append({
                     'test': 'server',
                     'task': task_id,
                     'score': score,
-                    'cumulative': cumulative_server,
-                    'issue': f'Server cumulative score {cumulative_server} not in (0, 1)'
+                    'issue': f'Server reward score {score} not in (0, 1)'
                 })
-                print(f"    FAIL {task_id}: server cumulative={cumulative_server:.6f} (VIOLATION)")
+                print(f"    FAIL {task_id}: server score={score:.6f} (VIOLATION)")
             else:
-                print(f"    OK   {task_id}: server score={score:.6f}, cumulative={cumulative_server:.6f}")
+                print(f"    OK   {task_id}: server score={score:.6f}")
                 
     except ImportError:
         print("  SKIP: FastAPI not installed, skipping server test")

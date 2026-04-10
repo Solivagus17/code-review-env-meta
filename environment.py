@@ -59,43 +59,29 @@ class CodeReviewEnv:
         self.state_data        = self.task.get_initial_state()
         return self._build_observation()
 
-    def step(self, action: Action) -> tuple[Observation, float, bool, dict]:
+    def step(self, action: Action) -> tuple[Observation, Reward, bool, dict]:
         """Execute one review action. Returns (obs, reward, done, info)."""
         if self.done:
             raise ValueError('Environment is done. Call reset() first.')
             
-        # Add history to state_data for grader to use (loop penalty checking)
+        # Add history to state_data for grader to use
         self.state_data['history'] = [{'action_type': h.action_type} for h in self.history]
         
-        # Get the raw reward from the grader
+        # Get the absolute reward from the grader (this is ALREADY strictly clamped by grader)
         reward = self.task.grader.grade(action, self.state_data, self.step_count)
-        
-        # Target Absolute Score (Clamped strictly)
-        target_abs = _strict_clamp(reward.total)
 
         # Max steps exceeded penalty
         max_steps_exceeded = (self.step_count + 1) >= self.task.max_steps
         if max_steps_exceeded and not reward.is_terminal and action.verdict not in [ReviewVerdict.APPROVE, ReviewVerdict.REQUEST_CHANGES]:
             reward.is_terminal = True
-            target_abs = _strict_clamp(target_abs - 0.10)
+            reward.total = _strict_clamp(reward.total - 0.10)
             reward.message += " (Max steps exceeded)"
 
-        # Calculate delta so that the sum of rewards equals target_abs
-        ideal_delta = target_abs - self.cumulative_reward
-
-        # Ensure the final sum doesn't exceed bounds
-        projected_sum = self.cumulative_reward + ideal_delta
-        if projected_sum >= 1.0:
-            ideal_delta = 0.999 - self.cumulative_reward
-        elif projected_sum <= 0.0:
-            ideal_delta = 0.001 - self.cumulative_reward
-
-        reward.total = ideal_delta
-        self.cumulative_reward += reward.total
-        self.cumulative_reward = _strict_clamp(self.cumulative_reward)
+        # Strictly replace cumulative_reward instead of accumulating
+        # This prevents the sum from reaching > 1.0 logic failures!
+        self.cumulative_reward = reward.total
         
         self.step_count += 1
-
         
         self.done = (
             reward.is_terminal or
@@ -112,10 +98,9 @@ class CodeReviewEnv:
         obs  = self._build_observation()
         info = {
             'step': self.step_count, 
-            'cumulative_reward': _strict_clamp(self.cumulative_reward),
-            'breakdown': reward.breakdown.model_dump()
+            'cumulative_reward': self.cumulative_reward,
         }
-        return obs, float(reward.total), self.done, info
+        return obs, reward, self.done, info
 
     def state(self) -> dict:
         """Return current internal state as a serialisable dict."""

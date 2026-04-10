@@ -16,6 +16,16 @@ SCORE_MIN = 0.001
 SCORE_MAX = 0.999
 
 def safe_clamp(val, lo=SCORE_MIN, hi=SCORE_MAX, fallback=0.5):
+    """Clamp value strictly within (0, 1). Returns fallback for NaN."""
+    if val is None:
+        return fallback
+    if isinstance(val, dict):
+        # If somehow a dict slips through, extract 'total'
+        val = val.get('total', fallback)
+    try:
+        val = float(val)
+    except (TypeError, ValueError):
+        return fallback
     if val != val:  # NaN check
         return fallback
     return max(lo, min(hi, val))
@@ -44,8 +54,18 @@ def post_reset(req: Optional[ResetRequest] = None):
         current_env = CodeReviewEnv(task_id=req.task_id)
         obs = current_env.reset()
         obs_dict = obs.model_dump()
-        obs_dict['cumulative_reward'] = safe_clamp(obs_dict['cumulative_reward'])
-        return obs_dict
+
+        # Ensure cumulative_reward is clamped
+        obs_dict['cumulative_reward'] = safe_clamp(obs_dict.get('cumulative_reward', 0))
+
+        # OpenEnv protocol: observation should contain a 'reward' field
+        obs_dict['reward'] = None  # No reward at reset
+
+        return {
+            "observation": obs_dict,
+            "reward": None,
+            "done": False,
+        }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -57,22 +77,21 @@ def post_step(action: Action):
     try:
         action.confidence_score = safe_clamp(action.confidence_score)
         obs, reward, done, info = current_env.step(action)
-        
-        # Clamp the reward total one final time for absolute safety
-        reward.total = safe_clamp(reward.total)
-        
-        # Also clamp all breakdown fields that might be exposed
+
+        # CRITICAL: reward.total must be a float strictly in (0, 1)
+        reward_value = safe_clamp(reward.total)
+
         obs_dict = obs.model_dump()
-        obs_dict['cumulative_reward'] = safe_clamp(obs_dict['cumulative_reward'])
-        info['cumulative_reward'] = safe_clamp(info['cumulative_reward'])
-        
-        # Return reward as a proper dict with clamped total
-        reward_dict = reward.model_dump()
-        reward_dict['total'] = safe_clamp(reward_dict['total'])
-        
+        obs_dict['cumulative_reward'] = safe_clamp(obs_dict.get('cumulative_reward', 0))
+
+        # OpenEnv protocol: observation should contain the reward
+        obs_dict['reward'] = reward_value
+
+        info['cumulative_reward'] = safe_clamp(info.get('cumulative_reward', 0))
+
         return {
             "observation": obs_dict,
-            "reward": reward_dict,
+            "reward": reward_value,    # Float, strictly in (0, 1)
             "done": done,
             "info": info
         }
@@ -85,7 +104,7 @@ def get_state():
     if current_env is None:
         raise HTTPException(status_code=400, detail="Environment not initialized.")
     state = current_env.state()
-    state['cumulative_reward'] = safe_clamp(state['cumulative_reward'])
+    state['cumulative_reward'] = safe_clamp(state.get('cumulative_reward', 0))
     return state
 
 @app.post("/action")

@@ -77,10 +77,10 @@ class CodeReviewEnv:
         # 3. Nudge logic (The "Anti-Zero" & "Anti-One" Guard)
         # Ensure the delta itself is never exactly 0.0 or too close to boundaries
         # that would make cumulative sum reach 0.0 or 1.0
-        
+
         # First, check what the projected sum would be
         projected_sum = self.cumulative_reward + ideal_delta
-        
+
         # If projected sum would be >= 1.0, adjust delta to keep sum below 1.0
         if projected_sum >= 1.0:
             ideal_delta = 0.999 - self.cumulative_reward
@@ -90,19 +90,19 @@ class CodeReviewEnv:
         # If delta is too close to zero (but sum is safe), give it a minimum magnitude
         elif abs(ideal_delta) < 0.0001:
             ideal_delta = 0.0001
-        
+
         # 4. Final clamp: ensure delta is strictly between 0 and 1
         # CRITICAL: Only clamp the UPPER bound, not the lower bound
         # The lower bound should be handled by the projected_sum check above
         ideal_delta = min(ideal_delta, 0.999)
-        
+
         # Ensure the final delta is never exactly 0.0 or negative
         if ideal_delta <= 0.0:
             ideal_delta = 0.0001
-            
+
         reward.total = round(ideal_delta, 6)
         self.cumulative_reward = round(self.cumulative_reward + reward.total, 6)
-        
+
         # Safety check: ensure cumulative never reaches 0.0 or 1.0
         if self.cumulative_reward >= 1.0:
             self.cumulative_reward = 0.999

@@ -11,7 +11,11 @@ app = FastAPI(title="CodeReviewEnv")
 
 current_env = None
 
-def safe_clamp(val, lo=0.001, hi=0.999, fallback=0.5):
+# Strict bounds — all scores must be strictly inside (0, 1)
+SCORE_MIN = 0.001
+SCORE_MAX = 0.999
+
+def safe_clamp(val, lo=SCORE_MIN, hi=SCORE_MAX, fallback=0.5):
     if val != val:  # NaN check
         return fallback
     return max(lo, min(hi, val))
@@ -53,13 +57,22 @@ def post_step(action: Action):
     try:
         action.confidence_score = safe_clamp(action.confidence_score)
         obs, reward, done, info = current_env.step(action)
-        reward_value = safe_clamp(reward.total)
+        
+        # Clamp the reward total one final time for absolute safety
+        reward.total = safe_clamp(reward.total)
+        
+        # Also clamp all breakdown fields that might be exposed
         obs_dict = obs.model_dump()
         obs_dict['cumulative_reward'] = safe_clamp(obs_dict['cumulative_reward'])
         info['cumulative_reward'] = safe_clamp(info['cumulative_reward'])
+        
+        # Return reward as a proper dict with clamped total
+        reward_dict = reward.model_dump()
+        reward_dict['total'] = safe_clamp(reward_dict['total'])
+        
         return {
             "observation": obs_dict,
-            "reward": reward_value,
+            "reward": reward_dict,
             "done": done,
             "info": info
         }

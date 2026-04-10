@@ -4,6 +4,16 @@ from tasks.task_easy import EasyTask
 from tasks.task_medium import MediumTask
 from tasks.task_hard import HardTask
 
+# Strict bounds for all scores — strictly inside (0, 1)
+SCORE_MIN = 0.001
+SCORE_MAX = 0.999
+
+def _strict_clamp(value: float) -> float:
+    """Clamp a value to be strictly within (0, 1)."""
+    if value != value:  # NaN check
+        return 0.5
+    return max(SCORE_MIN, min(SCORE_MAX, value))
+
 def load_task(task_id: str):
     if task_id == 'easy':
         return EasyTask()
@@ -36,7 +46,7 @@ class CodeReviewEnv:
             review_history=self.history,
             task_instructions=f"Complete the {self.task_id} code review task.",
             done=self.done,
-            cumulative_reward=self.cumulative_reward
+            cumulative_reward=_strict_clamp(self.cumulative_reward)
         )
         return obs
 
@@ -57,58 +67,24 @@ class CodeReviewEnv:
         # Add history to state_data for grader to use (loop penalty checking)
         self.state_data['history'] = [{'action_type': h.action_type} for h in self.history]
         
+        # Get the raw reward from the grader
         reward = self.task.grader.grade(action, self.state_data, self.step_count)
-        
-        # 1. Calculate Target Absolute Score (Clamped strictly)
-        # We clamp the target absolute score to [0.01, 0.99] to give us room for nudges
-        target_abs = max(0.01, min(0.99, reward.total))
         
         # Max steps exceeded penalty
         max_steps_exceeded = (self.step_count + 1) >= self.task.max_steps
         if max_steps_exceeded and not reward.is_terminal and action.verdict not in [ReviewVerdict.APPROVE, ReviewVerdict.REQUEST_CHANGES]:
             reward.is_terminal = True
-            target_abs = max(0.01, target_abs - 0.10)
+            reward.total = reward.total - 0.10
             reward.message += " (Max steps exceeded)"
 
-        # 2. Calculate ideal delta
-        # reward.total in the response must be the delta that makes the SUM equal target_abs
-        ideal_delta = target_abs - self.cumulative_reward
-
-        # 3. Nudge logic (The "Anti-Zero" & "Anti-One" Guard)
-        # Ensure the delta itself is never exactly 0.0 or too close to boundaries
-        # that would make cumulative sum reach 0.0 or 1.0
-
-        # First, check what the projected sum would be
-        projected_sum = self.cumulative_reward + ideal_delta
-
-        # If projected sum would be >= 1.0, adjust delta to keep sum below 1.0
-        if projected_sum >= 1.0:
-            ideal_delta = 0.999 - self.cumulative_reward
-        # If projected sum would be <= 0.0, adjust delta to keep sum above 0.0
-        elif projected_sum <= 0.0:
-            ideal_delta = 0.001 - self.cumulative_reward
-        # If delta is too close to zero (but sum is safe), give it a minimum magnitude
-        elif abs(ideal_delta) < 0.0001:
-            ideal_delta = 0.0001
-
-        # 4. Final clamp: ensure delta is strictly between 0 and 1
-        # CRITICAL: Only clamp the UPPER bound, not the lower bound
-        # The lower bound should be handled by the projected_sum check above
-        ideal_delta = min(ideal_delta, 0.999)
-
-        # Ensure the final delta is never exactly 0.0 or negative
-        if ideal_delta <= 0.0:
-            ideal_delta = 0.0001
-
-        reward.total = round(ideal_delta, 6)
-        self.cumulative_reward = round(self.cumulative_reward + reward.total, 6)
-
-        # Safety check: ensure cumulative never reaches 0.0 or 1.0
-        if self.cumulative_reward >= 1.0:
-            self.cumulative_reward = 0.999
-        elif self.cumulative_reward <= 0.0:
-            self.cumulative_reward = 0.001
-        self.step_count       += 1
+        # CRITICAL: Clamp the per-step score to strictly (0, 1)
+        # This is the value the validator checks
+        reward.total = _strict_clamp(reward.total)
+        
+        # Update cumulative reward (internal tracking only)
+        self.cumulative_reward += reward.total
+        
+        self.step_count += 1
         
         self.done = (
             reward.is_terminal or
@@ -123,7 +99,7 @@ class CodeReviewEnv:
         self.history.append(entry)
         
         obs  = self._build_observation()
-        info = {'step': self.step_count, 'cumulative_reward': self.cumulative_reward}
+        info = {'step': self.step_count, 'cumulative_reward': _strict_clamp(self.cumulative_reward)}
         return obs, reward, self.done, info
 
     def state(self) -> dict:
@@ -132,7 +108,7 @@ class CodeReviewEnv:
             'task_id':          self.task_id,
             'step_count':       self.step_count,
             'done':             self.done,
-            'cumulative_reward':self.cumulative_reward,
+            'cumulative_reward':_strict_clamp(self.cumulative_reward),
             'history':          [h.model_dump() for h in self.history],
             'state_data':       self.state_data,
         }

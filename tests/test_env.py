@@ -33,7 +33,7 @@ def test_step_easy():
     r = client.post('/step', json=action)
     assert r.status_code == 200
     result = r.json()
-    assert result['reward']['total'] <= 1.0
+    assert 0.0 < result['reward']['total'] < 1.0, f"Score {result['reward']['total']} not strictly in (0, 1)"
 
 def test_state():
     client.post('/reset', json={'task_id': 'medium'})

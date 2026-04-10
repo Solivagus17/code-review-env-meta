@@ -28,7 +28,7 @@ def grade(action: Action, state: dict, step: int) -> Reward:
             if abs(lc.line_number - issue['line']) <= 3 and lc.category == issue['category']:
                 # Calculate severity match
                 if lc.severity == issue['severity']:
-                    sev_score = 1.0
+                    sev_score = 1.0 - EPSILON
                 else:
                     try:
                         idx_true = SEVERITY_LEVELS.index(issue['severity'])
@@ -79,7 +79,7 @@ def grade(action: Action, state: dict, step: int) -> Reward:
     breakdown.efficiency_bonus = fix_score + eff_score # combine them since there's no specific fix field in RewardBreakdown
 
     # 5. False positive penalty (-0.15 for critical FP)
-    fp_penalty = 0.0
+    fp_penalty = EPSILON
     for lc in action.line_comments:
         matched = False
         for issue in issues:
@@ -92,7 +92,7 @@ def grade(action: Action, state: dict, step: int) -> Reward:
             else:
                 fp_penalty -= 0.05
     
-    if fp_penalty == 0.0:
+    if fp_penalty == EPSILON:
         breakdown.false_positive_penalty = EPSILON
     else:
         breakdown.false_positive_penalty = max(fp_penalty, -0.4) # arbitrary cap

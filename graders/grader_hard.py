@@ -1,12 +1,15 @@
 from models import Action, Reward, RewardBreakdown
 
+# Small epsilon to ensure scores are strictly between 0 and 1
+EPSILON = 1e-6
+
 def grade(action: Action, state: dict, step: int) -> Reward:
     gt        = state['ground_truth']
     issues    = gt['issues']
     breakdown = RewardBreakdown()
 
     # 1. Verdict accuracy (0.20 for hard)
-    breakdown.verdict_accuracy = 0.20 if action.verdict == gt['verdict'] else 0.0
+    breakdown.verdict_accuracy = 0.20 if action.verdict == gt['verdict'] else EPSILON
 
     # 2. Security issue detection (0.40 detection + 0.20 specific security weighting)
     # PRD: Security issues carry 2x multiplier for `category == 'security'`.
@@ -30,9 +33,9 @@ def grade(action: Action, state: dict, step: int) -> Reward:
                     try:
                         idx_true = SEVERITY_LEVELS.index(issue['severity'])
                         idx_pred = SEVERITY_LEVELS.index(lc.severity)
-                        sev_score = 0.5 if abs(idx_true - idx_pred) == 1 else 0.0
+                        sev_score = 0.5 if abs(idx_true - idx_pred) == 1 else EPSILON
                     except ValueError:
-                        sev_score = 0.0
+                        sev_score = EPSILON
                 
                 # Full credit implies fix is provided
                 has_fix = len(action.suggested_fixes) > 0
@@ -47,37 +50,32 @@ def grade(action: Action, state: dict, step: int) -> Reward:
     # Max issue detection is 0.40 combined bug detection + 0.20 security specific
     # In hard task, we can just map it fully to `bug_detection` + `security_detection`
     # Let's say bug_detection is non-security, security_detection is security
-    sec_found = 0
-    sec_total = 0
-    for issue in issues:
-        if issue['category'] == 'security':
-            sec_total += 2.0
-            # Rough estimation for breakdown
-    # For simplicity, let's distribute the score based on finding weight.
-    # We have 0.60 total possible for detection.
-    detection_ratio = found_weight / max(total_weight, 0.01)
-    breakdown.bug_detection = detection_ratio * 0.40
-    breakdown.security_detection = detection_ratio * 0.20
+    if total_weight > 0:
+        detection_ratio = found_weight / total_weight
+    else:
+        detection_ratio = EPSILON
+    
+    breakdown.bug_detection = max(EPSILON, detection_ratio * 0.40)
+    breakdown.security_detection = max(EPSILON, detection_ratio * 0.20)
 
     # 3. Comment quality / Structured Report Bonus (+0.10)
     word_count = len(action.overall_comment.split())
     # Baseline comment quality up to 0.10
-    breakdown.comment_quality = min(word_count / 100, 1.0) * 0.10
+    base_quality = min(word_count / 100, 1.0) * 0.10
     
     # Structured report bonus
     comment_lower = action.overall_comment.lower()
     has_struct = all(kw in comment_lower for kw in ['vulnerability', 'line', 'exploit', 'fix'])
     if has_struct:
-        breakdown.comment_quality += 0.10
+        base_quality += 0.10
+    
+    breakdown.comment_quality = max(EPSILON, base_quality)
 
     # 4. Fix suggestions (0.10)
-    breakdown.efficiency_bonus = min(len(action.suggested_fixes) * 0.05, 0.10) # Using efficiency_bonus field for fixes logic or standalone? 
-    # Actually wait, hard task efficiency bonus is 0.05, and fix bonus is 0.10. We can map fix bonus to efficiency_bonus + part of comment_quality, but we follow the PRD breakdown closely. 
-    # Let's map fix suggestion to `efficiency_bonus` field if required, or we could just use total.
-    fix_score = min(len(action.suggested_fixes) * 0.05, 0.10)
+    fix_score = max(EPSILON, min(len(action.suggested_fixes) * 0.05, 0.10))
 
     # Efficiency bonus (0.05)
-    eff_score = max(0.0, 0.05 - (step * 0.01))
+    eff_score = max(EPSILON, 0.05 - (step * 0.01))
     breakdown.efficiency_bonus = fix_score + eff_score # combine them since there's no specific fix field in RewardBreakdown
 
     # 5. False positive penalty (-0.15 for critical FP)
@@ -93,9 +91,14 @@ def grade(action: Action, state: dict, step: int) -> Reward:
                 fp_penalty -= 0.15
             else:
                 fp_penalty -= 0.05
-    breakdown.false_positive_penalty = max(fp_penalty, -0.4) # arbitrary cap
+    
+    if fp_penalty == 0.0:
+        breakdown.false_positive_penalty = EPSILON
+    else:
+        breakdown.false_positive_penalty = max(fp_penalty, -0.4) # arbitrary cap
 
     # 6. Loop penalty (-0.15)
+    breakdown.loop_penalty = EPSILON  # Default to epsilon
     if len(state.get('history', [])) >= 2:
         last_two = [h['action_type'] for h in state['history'][-2:]]
         if last_two[0] == last_two[1] == action.verdict:
@@ -110,6 +113,9 @@ def grade(action: Action, state: dict, step: int) -> Reward:
         breakdown.false_positive_penalty,
         breakdown.loop_penalty
     ])
-    total = max(0.01, min(0.99, total))
+    
+    # Clamp to strictly (0, 1) with safety margin
+    total = max(EPSILON, min(1.0 - EPSILON, total))
+    
     return Reward(total=total, breakdown=breakdown, message='Hard review graded',
                   is_terminal=(action.verdict in ['approve','request_changes']))

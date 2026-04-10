@@ -78,17 +78,19 @@ def post_step(action: Action):
         action.confidence_score = safe_clamp(action.confidence_score)
         obs, reward, done, info = current_env.step(action)
 
+        # CRITICAL: The validator reads response["reward"] as a PLAIN FLOAT.
+        # reward.total is already strictly clamped to (0.001, 0.999) by the grader.
+        reward_float = safe_clamp(reward.total)
+
         obs_dict = obs.model_dump()
         obs_dict['cumulative_reward'] = safe_clamp(obs_dict.get('cumulative_reward', 0))
-
-        # OpenEnv protocol: observation should contain the reward
-        obs_dict['reward'] = reward.model_dump()
+        obs_dict['reward'] = reward_float
 
         info['cumulative_reward'] = safe_clamp(info.get('cumulative_reward', 0))
 
         return {
             "observation": obs_dict,
-            "reward": reward.model_dump(),
+            "reward": reward_float,   # plain float strictly in (0.001, 0.999)
             "done": done,
             "info": info
         }

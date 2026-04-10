@@ -2,32 +2,12 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from enum import Enum
 
+# --- Enums for Type Safety ---
+
 class DifficultyLevel(str, Enum):
     EASY   = 'easy'
     MEDIUM = 'medium'
     HARD   = 'hard'
-
-class ReviewHistoryEntry(BaseModel):
-    step:        int
-    action_type: str
-    comment:     Optional[str] = None
-    verdict:     Optional[str] = None
-    reward:      float
-
-class Observation(BaseModel):
-    task_id:          str                     # e.g. 'easy', 'medium', 'hard'
-    pr_id:            str                     # Unique PR identifier
-    pr_title:         str
-    pr_description:   str
-    code_diff:        str                     # Unified diff string
-    language:         str = 'python'
-    step_number:      int
-    max_steps:        int
-    review_history:   List[ReviewHistoryEntry] = []
-    task_instructions:str                     # Injected task-specific prompt
-    metadata:         Dict[str, Any] = {}     # author, lines_changed, etc.
-    done:             bool = False
-    cumulative_reward:float = 0.0
 
 class SeverityLevel(str, Enum):
     CRITICAL = 'critical'
@@ -42,31 +22,59 @@ class ReviewVerdict(str, Enum):
     COMMENT           = 'comment'
     NEEDS_MORE_INFO   = 'needs_more_info'
 
+# --- State & History Models ---
+
+class ReviewHistoryEntry(BaseModel):
+    step:         int
+    action_type:  str
+    comment:      Optional[str] = None
+    verdict:      Optional[str] = None
+    reward:       float
+
+class Observation(BaseModel):
+    task_id:           str
+    pr_id:             str
+    pr_title:          str
+    pr_description:    str
+    code_diff:         str
+    language:          str = 'python'
+    step_number:       int
+    max_steps:         int
+    review_history:    List[ReviewHistoryEntry] = []
+    task_instructions: str
+    metadata:          Dict[str, Any] = {}
+    done:              bool = False
+    cumulative_reward: float = 0.0
+
+# --- Action Models (Agent Output) ---
+
 class LineComment(BaseModel):
     line_number: int
     comment:     str
     severity:    SeverityLevel
-    category:    str    # 'bug'|'security'|'style'|'performance'|'logic'
+    category:    str  # 'bug'|'security'|'style'|'performance'|'logic'
 
 class Action(BaseModel):
-    verdict:          ReviewVerdict
-    overall_comment:  str = Field(min_length=10, max_length=2000)
-    line_comments:    List[LineComment] = []
-    suggested_fixes:  List[str] = []
-    confidence_score: float = Field(ge=0.0, le=1.0, default=0.5)
-    reasoning:        Optional[str] = None
+    verdict:           ReviewVerdict
+    overall_comment:   str = Field(min_length=10, max_length=2000)
+    line_comments:     List[LineComment] = []
+    suggested_fixes:   List[str] = []
+    confidence_score:  float = Field(ge=0.0, le=1.0, default=0.5)
+    reasoning:         Optional[str] = None
+
+# --- Reward & Feedback Models ---
 
 class RewardBreakdown(BaseModel):
-    verdict_accuracy:     float = 0.0   # Was approve/reject correct?
-    bug_detection:        float = 0.0   # Fraction of bugs found
-    security_detection:   float = 0.0   # Fraction of security issues found
-    comment_quality:      float = 0.0   # Relevance + actionability
-    false_positive_penalty:float = 0.0  # Penalizes hallucinated bugs
-    loop_penalty:         float = 0.0   # Penalizes repeated identical actions
-    efficiency_bonus:     float = 0.0   # Bonus for finishing before max_steps
+    verdict_accuracy:       float = 0.0
+    bug_detection:          float = 0.0
+    security_detection:     float = 0.0
+    comment_quality:        float = 0.0
+    false_positive_penalty: float = 0.0
+    loop_penalty:           float = 0.0
+    efficiency_bonus:       float = 0.0
 
 class Reward(BaseModel):
-    total:     float
-    breakdown: RewardBreakdown
-    message:   str
-    is_terminal:bool = False
+    total:       float
+    breakdown:   RewardBreakdown
+    message:     str
+    is_terminal: bool = False

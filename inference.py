@@ -76,10 +76,13 @@ def run_task(task_id: str) -> float:
     print(f'[START] {json.dumps(start_log)}', flush=True)
     
     # Reset environment
-    reset_resp = requests.post(f'{ENV_BASE_URL}/reset', json={'task_id': task_id})
-    if reset_resp.status_code != 200:
-        raise RuntimeError(f"Reset failed: {reset_resp.text}")
-    obs = reset_resp.json()
+    try:
+        reset_resp = requests.post(f'{ENV_BASE_URL}/reset', json={'task_id': task_id}, timeout=10)
+        reset_resp.raise_for_status()
+        obs_raw = reset_resp.json()
+        obs = obs_raw.get('observation', obs_raw)
+    except Exception as e:
+        raise RuntimeError(f"Reset failed: {str(e)}")
     
     done = False
     cum_reward = 0.0
@@ -88,13 +91,13 @@ def run_task(task_id: str) -> float:
     
     while not done and step < max_steps:
         action = call_llm(obs)
-        step_resp = requests.post(f'{ENV_BASE_URL}/step', json=action)
-        if step_resp.status_code != 200:
-             # In case of validation error (e.g., empty comment), break loop to avoid crashing entirely
-             print(f"Error calling /step: {step_resp.text}", flush=True)
-             break
-
-        result = step_resp.json()
+        try:
+            step_resp = requests.post(f'{ENV_BASE_URL}/step', json=action, timeout=10)
+            step_resp.raise_for_status()
+            result = step_resp.json()
+        except Exception as e:
+            print(f"Error calling /step: {str(e)}", flush=True)
+            break
         obs = result['observation']
         reward = result['reward']
         done = result['done']

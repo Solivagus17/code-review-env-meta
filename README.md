@@ -1,166 +1,254 @@
----
-title: CodeReviewEnv
-emoji: 🐐
-colorFrom: blue
-colorTo: indigo
-sdk: docker
-pinned: false
-tags:
-  - openenv
-  - code-review
-  - reinforcement-learning
-  - agent-environment
-app_port: 7860
----
+# 🔍 CodeReviewEnv
 
-# CodeReviewEnv 🔍
+![Python](https://img.shields.io/badge/Python-3.10+-blue?logo=python&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)
+![OpenEnv](https://img.shields.io/badge/OpenEnv-compliant-success)
+![License](https://img.shields.io/badge/License-MIT-green)
 
-**CodeReviewEnv** is an OpenEnv-compatible reinforcement learning environment that challenges AI agents to perform real-world software code review. Agents analyze Python pull requests, detect bugs and security vulnerabilities, classify issues by severity, and deliver structured review verdicts — just like a senior engineer would.
+> An [OpenEnv](https://github.com/openenv)-compliant reinforcement learning environment for training and evaluating agents on real-world software code review tasks.
 
----
+-----
 
-## 🧠 What Does an Agent Do?
+## Table of Contents
 
-At each step, the agent receives a pull request observation containing a code diff, PR title, description, and review history. The agent must produce a structured review action including a verdict, line-level annotations, suggested fixes, and a confidence score. The environment evaluates the response and returns a reward.
+- [Overview](#overview)
+- [Prerequisites](#prerequisites)
+- [Setup](#setup)
+- [Usage](#usage)
+- [Observation Space](#observation-space)
+- [Action Space](#action-space)
+- [Reward Function](#reward-function)
+- [Tasks](#tasks)
+- [Baseline Scores](#baseline-scores)
+- [Running Inference](#running-inference)
+- [OpenEnv Validation](#openenv-validation)
+- [Contributing](#contributing)
+- [License](#license)
 
----
+-----
 
-## 📦 Observation Space
+## Overview
 
-| Field | Type | Description |
-|---|---|---|
-| `task_id` | string | Task difficulty: `easy`, `medium`, or `hard` |
-| `pr_id` | string | Unique pull request identifier |
-| `pr_title` | string | Title of the pull request |
-| `pr_description` | string | Description of the proposed changes |
-| `code_diff` | string | Unified diff of the code to review |
-| `step_number` | int | Current step in the episode |
-| `max_steps` | int | Maximum allowed steps for this task |
-| `review_history` | list | Log of all previous actions this episode |
-| `task_instructions` | string | Specific guidance for the current task |
-| `done` | bool | Whether the episode has ended |
-| `cumulative_reward` | float | Accumulated score so far |
+**CodeReviewEnv** simulates real-world pull request (PR) review scenarios. It evaluates whether an agent can:
 
----
+- Detect logic flaws, security bugs, and code quality issues
+- Provide constructive, structured feedback
+- Return a correct approval verdict (`approve`, `request_changes`, `comment`, or `needs_more_info`)
 
-## 🎮 Action Space
+The environment spans three difficulty tiers — from simple bug triage on short snippets to full OWASP security audits on realistic PRs. It is designed for use in RL training pipelines and agent evaluation benchmarks.
 
-| Field | Type | Description |
-|---|---|---|
-| `verdict` | enum | `approve` \| `request_changes` \| `comment` \| `needs_more_info` |
-| `overall_comment` | string | Full review text (min 10 characters) |
-| `line_comments` | list | Per-line annotations: `line_number`, `comment`, `severity`, `category` |
-| `suggested_fixes` | list | Concrete fix recommendations |
-| `confidence_score` | float | Agent confidence from 0.0 to 1.0 |
-| `reasoning` | string | Optional chain-of-thought |
+-----
 
-**Severity levels:** `critical` · `high` · `medium` · `low` · `info`
-**Categories:** `bug` · `security` · `style` · `performance` · `logic`
+## Prerequisites
 
----
+- **Python** 3.10+
+- **Docker** (recommended for quickstart)
+- **uv** or **pip** for local Python dependency management
+- A [HuggingFace](https://huggingface.co) account and token (for running inference with hosted models)
 
-## 🏆 Tasks
+-----
 
-| Task | Difficulty | Max Steps | Focus |
-|---|---|---|---|
-| `easy` | 🟢 Easy | 3 | Bug triage in short Python snippets |
-| `medium` | 🟡 Medium | 5 | Full review of a 50-line pull request |
-| `hard` | 🔴 Hard | 7 | Security vulnerability identification & remediation |
+## Setup
 
----
-
-## 💰 Reward Signal
-
-Rewards are **dense** — the agent receives feedback at every step. The score is a float strictly within `(0, 1)` and accounts for:
-
-| Component | Effect |
-|---|---|
-| Verdict accuracy | ✅ Correct approval decision |
-| Issue detection | ✅ Real bugs and vulnerabilities found |
-| Comment quality | ✅ Clear, detailed, actionable feedback |
-| Fix suggestions | ✅ Concrete remediation steps provided |
-| Efficiency bonus | ✅ Fewer steps to conclusive verdict |
-| False positive penalty | ❌ Hallucinated bugs reduce the score |
-| Loop penalty | ❌ Repeating verdicts without progress |
-
----
-
-## 🌐 API Endpoints
-
-| Method | Path | Description |
-|---|---|---|
-| `POST` | `/reset` | Start a new episode. Body: `{"task_id": "easy"}` |
-| `POST` | `/step` | Submit a review action. Returns `reward` (float) and `done`. |
-| `GET` | `/state` | Current internal environment state |
-| `GET` | `/health` | Liveness check — returns `200 OK` when ready |
-| `GET` | `/schema` | JSON schemas for `Action` and `Observation` models |
-
-### Example: POST /step
-
-**Request:**
-```json
-{
-  "verdict": "request_changes",
-  "overall_comment": "Found a critical SQL injection vulnerability on line 7.",
-  "line_comments": [
-    { "line_number": 7, "comment": "Unsanitized input passed to SQL.", "severity": "critical", "category": "security" }
-  ],
-  "suggested_fixes": ["Use parameterized queries."],
-  "confidence_score": 0.95
-}
-```
-
-**Response:**
-```json
-{ "observation": { "done": true, "cumulative_reward": 0.82 }, "reward": 0.82, "done": true }
-```
-
----
-
-## 🚀 Running Locally
+### Option 1: Docker (recommended)
 
 ```bash
-git clone https://github.com/Solivagus17/code-review-env-meta
+git clone https://github.com/Solivagus17/code-review-env-meta.git
 cd code-review-env-meta
 docker build -t codereviewenv .
 docker run -p 7860:7860 codereviewenv
 ```
 
----
-
-## 🤖 Running the Baseline Agent
+### Option 2: Local (uv)
 
 ```bash
-export API_BASE_URL="https://api-inference.huggingface.co/v1"
-export API_KEY="your_api_key_here"
-export ENV_BASE_URL="http://localhost:7860"
-export MODEL_NAME="Qwen/Qwen2.5-72B-Instruct"
+git clone https://github.com/Solivagus17/code-review-env-meta.git
+cd code-review-env-meta
+uv sync
+uv run environment.py
+```
 
+### Option 3: Local (pip)
+
+```bash
+git clone https://github.com/Solivagus17/code-review-env-meta.git
+cd code-review-env-meta
+pip install -r requirements.txt
+python environment.py
+```
+
+The server will start on `http://localhost:7860`.
+
+-----
+
+## Usage
+
+The environment exposes three HTTP endpoints once running.
+
+### Reset the environment
+
+```bash
+curl -X POST http://localhost:7860/reset \
+  -H "Content-Type: application/json" \
+  -d '{"task_id": "easy"}'
+```
+
+### Submit an action (step)
+
+```bash
+curl -X POST http://localhost:7860/step \
+  -H "Content-Type: application/json" \
+  -d '{
+    "verdict": "request_changes",
+    "overall_comment": "Found issues in the logic and authentication layer.",
+    "confidence_score": 0.95
+  }'
+```
+
+### Inspect current state
+
+```bash
+curl http://localhost:7860/state
+```
+
+-----
+
+## Observation Space
+
+The `Observation` model tracks the full state presented to the agent at each step:
+
+|Field              |Type                      |Description                                       |
+|-------------------|--------------------------|--------------------------------------------------|
+|`task_id`          |`str`                     |Difficulty tier: `'easy'`, `'medium'`, or `'hard'`|
+|`pr_id`            |`str`                     |Unique PR identifier                              |
+|`pr_title`         |`str`                     |Title of the pull request                         |
+|`pr_description`   |`str`                     |Description of the proposed changes               |
+|`code_diff`        |`str`                     |Unified diff string of the PR                     |
+|`language`         |`str`                     |Programming language (defaults to `'python'`)     |
+|`step_number`      |`int`                     |Current action step within the episode            |
+|`max_steps`        |`int`                     |Maximum steps allowed for the task                |
+|`review_history`   |`List[ReviewHistoryEntry]`|Full log of all previous actions and rewards      |
+|`task_instructions`|`str`                     |Task-specific instructions for the agent          |
+|`done`             |`bool`                    |`True` when the terminal condition is reached     |
+|`cumulative_reward`|`float`                   |Accumulated reward across all steps               |
+
+-----
+
+## Action Space
+
+The `Action` model defines what the agent can submit at each step:
+
+|Field             |Type               |Description                                                                  |
+|------------------|-------------------|-----------------------------------------------------------------------------|
+|`verdict`         |`ReviewVerdict`    |One of: `'approve'` | `'request_changes'` | `'comment'` | `'needs_more_info'`|
+|`overall_comment` |`str`              |Overall feedback on the PR (min. 10 characters)                              |
+|`line_comments`   |`List[LineComment]`|Inline comments on specific lines (see below)                                |
+|`suggested_fixes` |`List[str]`        |Proposed code-level remediation steps                                        |
+|`confidence_score`|`float`            |Agent’s confidence in its verdict (`0.0` – `1.0`)                            |
+|`reasoning`       |`str`              |Optional chain-of-thought rationale                                          |
+
+**LineComment fields:**
+
+|Field        |Type           |Values                                                          |
+|-------------|---------------|----------------------------------------------------------------|
+|`line_number`|`int`          |Line number in the diff                                         |
+|`comment`    |`str`          |Feedback text                                                   |
+|`severity`   |`SeverityLevel`|`'critical'` | `'high'` | `'medium'` | `'low'` | `'info'`       |
+|`category`   |`str`          |`'bug'` | `'security'` | `'style'` | `'performance'` | `'logic'`|
+
+-----
+
+## Reward Function
+
+Rewards are **dense** — provided at every step rather than only at episode end. This avoids sparse-reward training instability.
+
+|Component                   |Description                                                         |
+|----------------------------|--------------------------------------------------------------------|
+|✅ **Verdict Accuracy**      |Correct verdict vs. ground truth, weighted by task difficulty       |
+|🐛 **Bug/Issue Detection**   |Points for flagging exact lines with matching severity              |
+|🔐 **Security Detection**    |2× multiplier for identifying OWASP vulnerabilities (hard task only)|
+|💬 **Comment Quality**       |Scored on word count and use of structured review terminology       |
+|🔧 **Fix Suggestions**       |Points awarded for proposing concrete code remediations             |
+|⚡ **Efficiency Bonus**      |Higher reward for completing the task in fewer steps                |
+|❌ **False Positive Penalty**|`-0.15` per hallucinated critical issue                             |
+|🔁 **Loop Penalty**          |`-0.10` to `-0.15` for submitting an identical verdict repeatedly   |
+
+-----
+
+## Tasks
+
+|ID      |Difficulty|Description                                            |Success Criteria                            |
+|--------|----------|-------------------------------------------------------|--------------------------------------------|
+|`easy`  |🟢 Easy    |Classify bugs by severity in short Python snippets     |≥ 80% bugs found + accurate verdict         |
+|`medium`|🟡 Medium  |Full code review with written feedback on a ~50-line PR|≥ 70% issues found + low false positive rate|
+|`hard`  |🔴 Hard    |Identify and remediate security vulnerabilities        |Find all OWASP risks + high comment quality |
+
+-----
+
+## Baseline Scores
+
+Scores achieved by **Llama-3.3-70B** on each task:
+
+|Task                   |Min Score|Max Score|
+|-----------------------|---------|---------|
+|`easy` — Bug Triage    |0.70     |0.90     |
+|`medium` — Deep Review |0.50     |0.75     |
+|`hard` — Security Audit|0.25     |0.55     |
+
+-----
+
+## Running Inference
+
+Set your HuggingFace token and run the inference script:
+
+```bash
+export HF_TOKEN="your_hf_token_here"
 python inference.py
 ```
 
-**Structured output format:**
-```
-[START] task=easy
-[STEP] task=easy step=1 reward=0.7842
-[END] task=easy score=0.7842 steps=1
-{"type": "SUMMARY", "scores": {"easy": 0.78, "medium": 0.61, "hard": 0.44}}
-```
+This will run the default model against all three task difficulties and print per-step rewards and a final episode summary.
 
----
+-----
 
-## 📋 Requirements
+## OpenEnv Validation
 
-```
-fastapi
-uvicorn
-pydantic
-openai
-requests
+This environment is fully compliant with the [OpenEnv](https://github.com/openenv) specification. To validate:
+
+```bash
+pip install openenv
+openenv validate .
 ```
 
----
+Expected output:
 
-## 📄 License
+```
+✅ openenv.yaml found and valid
+✅ Observation model: typed Pydantic
+✅ Action model: typed Pydantic
+✅ Reward model: typed Pydantic
+✅ reset() endpoint: HTTP 200
+✅ step() endpoint: HTTP 200
+✅ state() endpoint: HTTP 200
+✅ 3 tasks found with graders
+✅ All reward values in [0.0, 1.0]
+```
 
-MIT
+-----
+
+## Contributing
+
+Contributions are welcome! To get started:
+
+1. Fork the repository
+1. Create a feature branch: `git checkout -b feature/your-feature`
+1. Commit your changes: `git commit -m 'Add your feature'`
+1. Push to the branch: `git push origin feature/your-feature`
+1. Open a Pull Request
+
+Please open an [issue](https://github.com/Solivagus17/code-review-env-meta/issues) first for major changes so we can discuss the approach.
+
+-----
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).

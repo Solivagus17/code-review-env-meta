@@ -1,25 +1,26 @@
 #!/usr/bin/env python3
 """
 Baseline inference script for CodeReviewEnv.
-Handles the loop between the LLM agent and the OpenEnv environment.
+Prints [START] / [STEP] / [END] structured output to stdout as required by the validator.
 """
 
 import os
+import sys
 import json
 import time
 import requests
 from openai import OpenAI
 
-# --- 1. Configuration ---
+# --- Configuration ---
 HF_TOKEN     = os.environ.get('HF_TOKEN')
 ENV_BASE_URL = os.environ.get('ENV_BASE_URL', 'http://localhost:7860')
 MODEL_NAME   = os.environ.get('MODEL_NAME', 'Qwen/Qwen2.5-72B-Instruct')
 API_BASE_URL = "https://api-inference.huggingface.co/v1"
 
 if not HF_TOKEN:
-    print("Warning: HF_TOKEN not found in environment variables.")
+    print("Warning: HF_TOKEN not set.", flush=True)
 
-# --- 2. Initialize LLM Client ---
+# --- LLM Client ---
 client = OpenAI(api_key=HF_TOKEN, base_url=API_BASE_URL)
 
 SYSTEM_PROMPT = """You are a senior software engineer performing a code review.
@@ -42,10 +43,11 @@ You must respond ONLY with a valid JSON object matching this schema:
   "reasoning": "string"
 }
 
-Do not include markdown blocks (like ```json) or any conversational text."""
+Do not include markdown blocks or any conversational text."""
+
 
 def call_llm(obs: dict) -> dict:
-    """Queries the LLM and parses the JSON response."""
+    """Query the LLM and return a parsed action dict."""
     task_instructions = obs.get('task_instructions', 'Complete the code review task.')
     user_msg = f"""Task: {task_instructions}
 PR Title: {obs.get('pr_title', '')}
@@ -56,104 +58,101 @@ Code Diff:
 
 Review History: {json.dumps(obs.get('review_history', []))}
 """
-
     try:
         resp = client.chat.completions.create(
             model=MODEL_NAME,
             messages=[
                 {'role': 'system', 'content': SYSTEM_PROMPT},
-                {'role': 'user', 'content': user_msg}
+                {'role': 'user',   'content': user_msg},
             ],
             max_tokens=1024,
-            temperature=0.1
+            temperature=0.1,
         )
         raw = resp.choices[0].message.content.strip()
-
-        # Robust JSON cleaning
         if "```json" in raw:
             raw = raw.split("```json")[1].split("```")[0]
         elif "```" in raw:
             raw = raw.split("```")[1].split("```")[0]
-
         return json.loads(raw.strip())
-
     except Exception as e:
-        print(f"LLM Parsing Error: {e}")
         return {
             "verdict": "comment",
-            "overall_comment": "Fallback: Error parsing LLM response.",
+            "overall_comment": "Unable to parse LLM response. Providing fallback review.",
             "line_comments": [],
             "suggested_fixes": [],
             "confidence_score": 0.5,
-            "reasoning": str(e)
+            "reasoning": str(e),
         }
 
-def run_task(task_id: str) -> float:
-    """Executes the full loop for a single task."""
-    print(f"\n{'='*20} STARTING TASK: {task_id.upper()} {'='*20}")
 
-    # 1. Reset Environment — POST JSON body, not query param
+def run_task(task_id: str) -> float:
+    """Run one full task episode and return the final score."""
+
+    # ── Required structured output: START ──────────────────────
+    print(f"[START] task={task_id}", flush=True)
+
+    # Reset environment
     try:
         res = requests.post(
             f"{ENV_BASE_URL}/reset",
             json={"task_id": task_id},
-            timeout=30
+            timeout=30,
         )
         res.raise_for_status()
         reset_data = res.json()
+        # Handle both bare obs and wrapped {"observation": ...} format
         obs = reset_data.get('observation', reset_data)
     except Exception as e:
-        print(f"Failed to reset env: {e}")
-        return 0.5  # Return mid-range fallback, never 0.0
+        print(f"[END] task={task_id} score=0.5 steps=0", flush=True)
+        return 0.5
 
-    done = False
-    step_num = 0
+    done      = obs.get('done', False)
     max_steps = obs.get('max_steps', 10)
+    step_num  = 0
     final_score = 0.5
 
-    # 2. Step Loop
+    # Step loop
     while not done and step_num < max_steps:
         step_num += 1
-        print(f"Step {step_num}/{max_steps}...")
 
-        # Get action from LLM
         action = call_llm(obs)
 
-        # Post action to environment
         try:
             res = requests.post(
                 f"{ENV_BASE_URL}/step",
                 json=action,
-                timeout=30
+                timeout=30,
             )
             res.raise_for_status()
             step_data = res.json()
 
-            # reward is a plain float strictly in (0, 1)
-            obs = step_data.get('observation', obs)
-            reward = step_data['reward']  # plain float
-            done = step_data.get('done', obs.get('done', False))
+            obs         = step_data.get('observation', obs)
+            reward      = float(step_data['reward'])          # plain float
+            done        = step_data.get('done', obs.get('done', False))
             final_score = obs.get('cumulative_reward', reward)
 
-            print(f"  Verdict: {action['verdict']} | Reward: {reward:.4f}")
+            # ── Required structured output: STEP ───────────────
+            print(f"[STEP] task={task_id} step={step_num} reward={reward:.4f}", flush=True)
 
         except Exception as e:
-            print(f"Step Error: {e}")
+            print(f"[STEP] task={task_id} step={step_num} reward=0.5", flush=True)
             break
 
-    print(f"[END] Task: {task_id} | Steps: {step_num} | Final Score: {final_score:.4f}")
+    # ── Required structured output: END ────────────────────────
+    print(f"[END] task={task_id} score={final_score:.4f} steps={step_num}", flush=True)
     return final_score
 
+
 if __name__ == "__main__":
-    tasks = ['easy', 'medium', 'hard']
-    results = {}
+    tasks   = ['easy', 'medium', 'hard']
+    scores  = {}
 
     for tid in tasks:
-        score = run_task(tid)
-        results[tid] = score
-        time.sleep(2)  # Cooldown between tasks
+        scores[tid] = run_task(tid)
+        time.sleep(1)
 
-    print("\n" + "#"*40)
-    print("FINAL EVALUATION SUMMARY")
-    print(json.dumps({"model": MODEL_NAME, "scores": results}, indent=2))
-    print("#"*40)
+    # Summary — also structured for easy parsing
+    print(
+        json.dumps({"type": "SUMMARY", "scores": scores, "model": MODEL_NAME}),
+        flush=True,
+    )

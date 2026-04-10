@@ -12,16 +12,17 @@ import requests
 from openai import OpenAI
 
 # --- Configuration ---
-HF_TOKEN     = os.environ.get('HF_TOKEN')
+# The validator injects API_BASE_URL (LiteLLM proxy) and API_KEY — always prefer those.
+# Fall back to HF inference API only when running locally.
+API_BASE_URL = os.environ.get('API_BASE_URL', 'https://api-inference.huggingface.co/v1')
+API_KEY      = os.environ.get('API_KEY') or os.environ.get('HF_TOKEN', '')
 ENV_BASE_URL = os.environ.get('ENV_BASE_URL', 'http://localhost:7860')
 MODEL_NAME   = os.environ.get('MODEL_NAME', 'Qwen/Qwen2.5-72B-Instruct')
-API_BASE_URL = "https://api-inference.huggingface.co/v1"
 
-if not HF_TOKEN:
-    print("Warning: HF_TOKEN not set.", flush=True)
+print(f"[CONFIG] API_BASE_URL={API_BASE_URL} MODEL={MODEL_NAME}", flush=True)
 
-# --- LLM Client ---
-client = OpenAI(api_key=HF_TOKEN, base_url=API_BASE_URL)
+# --- LLM Client (uses validator's proxy when API_BASE_URL is injected) ---
+client = OpenAI(api_key=API_KEY, base_url=API_BASE_URL)
 
 SYSTEM_PROMPT = """You are a senior software engineer performing a code review.
 Analyze the provided code diff and PR description carefully.

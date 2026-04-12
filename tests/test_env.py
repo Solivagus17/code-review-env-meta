@@ -42,3 +42,4 @@ def test_state():
     state = r.json()
     assert state['task_id'] == 'medium'
     assert 'done' in state
+

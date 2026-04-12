@@ -11,7 +11,7 @@ app = FastAPI(title="CodeReviewEnv")
 
 current_env = None
 
-# Strict bounds — all scores must be strictly inside (0, 1)
+
 SCORE_MIN = 0.001
 SCORE_MAX = 0.999
 
@@ -20,13 +20,13 @@ def safe_clamp(val, lo=SCORE_MIN, hi=SCORE_MAX, fallback=0.5):
     if val is None:
         return fallback
     if isinstance(val, dict):
-        # If somehow a dict slips through, extract 'total'
+
         val = val.get('total', fallback)
     try:
         val = float(val)
     except (TypeError, ValueError):
         return fallback
-    if val != val:  # NaN check
+    if val != val:
         return fallback
     return max(lo, min(hi, val))
 
@@ -55,11 +55,11 @@ def post_reset(req: Optional[ResetRequest] = None):
         obs = current_env.reset()
         obs_dict = obs.model_dump()
 
-        # Ensure cumulative_reward is clamped
+
         obs_dict['cumulative_reward'] = safe_clamp(obs_dict.get('cumulative_reward', 0))
 
-        # OpenEnv protocol: observation should contain a 'reward' field
-        obs_dict['reward'] = None  # No reward at reset
+
+        obs_dict['reward'] = None
 
         return {
             "observation": obs_dict,
@@ -78,8 +78,8 @@ def post_step(action: Action):
         action.confidence_score = safe_clamp(action.confidence_score)
         obs, reward, done, info = current_env.step(action)
 
-        # CRITICAL: The validator reads response["reward"] as a PLAIN FLOAT.
-        # reward.total is already strictly clamped to (0.001, 0.999) by the grader.
+
+
         reward_float = safe_clamp(reward.total)
 
         obs_dict = obs.model_dump()
@@ -90,7 +90,7 @@ def post_step(action: Action):
 
         return {
             "observation": obs_dict,
-            "reward": reward_float,   # plain float strictly in (0.001, 0.999)
+            "reward": reward_float,
             "done": done,
             "info": info
         }

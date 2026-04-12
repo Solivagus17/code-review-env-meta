@@ -2,3 +2,5 @@
 __pycache__/
 *.pytest_cache
 *.pyc
+
+validation_source_utf8.txt

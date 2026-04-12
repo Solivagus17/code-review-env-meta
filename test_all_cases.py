@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+
 """
 Comprehensive local test for Phase 2 validation
 Tests all edge cases to ensure scores are strictly in (0, 1)
@@ -14,19 +14,19 @@ def test_basic_scenarios():
     print("="*70)
     print("TEST 1: Basic Scenarios - All Task Types")
     print("="*70)
-    
+
     violations = []
-    
+
     for task_id in ['easy', 'medium', 'hard']:
         print(f"\n  Testing {task_id.upper()} task...")
         env = CodeReviewEnv(task_id=task_id)
         obs = env.reset()
-        
+
         for step in range(5):
             if obs.done:
                 break
-                
-            # Simple action
+
+
             action = Action(
                 verdict=ReviewVerdict.COMMENT if step < 3 else ReviewVerdict.APPROVE,
                 overall_comment="Test review comment with sufficient length to meet requirements.",
@@ -41,12 +41,12 @@ def test_basic_scenarios():
                 suggested_fixes=["Fix 1"],
                 confidence_score=0.7
             )
-            
+
             obs, reward, done, info = env.step(action)
             score = reward.total
             cumulative = info['cumulative_reward']
-            
-            # Check violations
+
+
             if score <= 0.0 or score >= 1.0:
                 violations.append({
                     'test': 'basic',
@@ -59,7 +59,7 @@ def test_basic_scenarios():
                 print(f"    FAIL Step {step+1}: score={score:.6f} (VIOLATION)")
             else:
                 print(f"    OK   Step {step+1}: score={score:.6f}, cumulative={cumulative:.6f}")
-            
+
             if cumulative <= 0.0 or cumulative >= 1.0:
                 violations.append({
                     'test': 'basic',
@@ -70,7 +70,7 @@ def test_basic_scenarios():
                     'issue': f'Cumulative {cumulative} not in (0, 1)'
                 })
                 print(f"    FAIL Cumulative violation!")
-    
+
     return violations
 
 def test_edge_cases():
@@ -78,9 +78,9 @@ def test_edge_cases():
     print("\n" + "="*70)
     print("TEST 2: Edge Cases - Boundary Conditions")
     print("="*70)
-    
+
     violations = []
-    
+
     test_cases = [
         {
             'name': 'No line comments (minimal score)',
@@ -98,7 +98,7 @@ def test_edge_cases():
                 verdict=ReviewVerdict.REQUEST_CHANGES,
                 overall_comment="Many issues found in this code review.",
                 line_comments=[
-                    LineComment(line_number=i, comment=f"Issue {i}", 
+                    LineComment(line_number=i, comment=f"Issue {i}",
                                severity=SeverityLevel.HIGH, category='bug')
                     for i in range(1, 11)
                 ],
@@ -122,7 +122,7 @@ def test_edge_cases():
                 verdict=ReviewVerdict.REQUEST_CHANGES,
                 overall_comment="Many critical issues found in review.",
                 line_comments=[
-                    LineComment(line_number=i*100, comment=f"Critical issue {i}", 
+                    LineComment(line_number=i*100, comment=f"Critical issue {i}",
                                severity=SeverityLevel.CRITICAL, category='security')
                     for i in range(1, 20)
                 ],
@@ -131,18 +131,18 @@ def test_edge_cases():
             )
         },
     ]
-    
+
     for test_case in test_cases:
         print(f"\n  Testing: {test_case['name']}")
-        
+
         for task_id in ['easy', 'medium', 'hard']:
             env = CodeReviewEnv(task_id=task_id)
             obs = env.reset()
-            
+
             obs, reward, done, info = env.step(test_case['action'])
             score = reward.total
             cumulative = info['cumulative_reward']
-            
+
             if score <= 0.0 or score >= 1.0:
                 violations.append({
                     'test': test_case['name'],
@@ -154,7 +154,7 @@ def test_edge_cases():
                 print(f"    FAIL {task_id}: score={score:.6f} (VIOLATION)")
             else:
                 print(f"    OK   {task_id}: score={score:.6f}, cumulative={cumulative:.6f}")
-    
+
     return violations
 
 def test_multi_step_accumulation():
@@ -162,24 +162,24 @@ def test_multi_step_accumulation():
     print("\n" + "="*70)
     print("TEST 3: Multi-Step Accumulation")
     print("="*70)
-    
+
     violations = []
-    
+
     for task_id in ['easy', 'medium', 'hard']:
         print(f"\n  Testing {task_id.upper()} - 10 random steps...")
         env = CodeReviewEnv(task_id=task_id)
         obs = env.reset()
-        
+
         max_steps = min(10, env.task.max_steps)
-        
+
         for step in range(max_steps):
             if obs.done:
                 break
-            
-            # Random action
+
+
             num_comments = random.randint(0, 5)
             action = Action(
-                verdict=random.choice([ReviewVerdict.COMMENT, ReviewVerdict.APPROVE, 
+                verdict=random.choice([ReviewVerdict.COMMENT, ReviewVerdict.APPROVE,
                                       ReviewVerdict.REQUEST_CHANGES]),
                 overall_comment="Random review comment " * random.randint(2, 10),
                 line_comments=[
@@ -194,11 +194,11 @@ def test_multi_step_accumulation():
                 suggested_fixes=[f"Fix {i}" for i in range(random.randint(0, 3))],
                 confidence_score=random.uniform(0.3, 0.9)
             )
-            
+
             obs, reward, done, info = env.step(action)
             score = reward.total
             cumulative = info['cumulative_reward']
-            
+
             if score <= 0.0 or score >= 1.0:
                 violations.append({
                     'test': 'accumulation',
@@ -221,7 +221,7 @@ def test_multi_step_accumulation():
                 print(f"    FAIL Step {step+1}: cumulative={cumulative:.6f} (VIOLATION)")
             else:
                 print(f"    OK   Step {step+1}: score={score:.6f}, cumulative={cumulative:.6f}")
-    
+
     return violations
 
 def test_max_steps_penalty():
@@ -229,32 +229,32 @@ def test_max_steps_penalty():
     print("\n" + "="*70)
     print("TEST 4: Max Steps Penalty")
     print("="*70)
-    
+
     violations = []
-    
+
     for task_id in ['easy', 'medium', 'hard']:
         print(f"\n  Testing {task_id.upper()} - reaching max steps...")
         env = CodeReviewEnv(task_id=task_id)
         obs = env.reset()
-        
+
         max_steps = env.task.max_steps
-        
-        for step in range(max_steps + 2):  # Go beyond max_steps
+
+        for step in range(max_steps + 2):
             if obs.done:
                 break
-            
+
             action = Action(
-                verdict=ReviewVerdict.COMMENT,  # Keep commenting to delay terminal
+                verdict=ReviewVerdict.COMMENT,
                 overall_comment="Continuing review with additional comments.",
                 line_comments=[],
                 suggested_fixes=[],
                 confidence_score=0.5
             )
-            
+
             obs, reward, done, info = env.step(action)
             score = reward.total
             cumulative = info['cumulative_reward']
-            
+
             if score <= 0.0 or score >= 1.0:
                 violations.append({
                     'test': 'max_steps',
@@ -267,7 +267,7 @@ def test_max_steps_penalty():
                 print(f"    FAIL Step {step+1}/{max_steps}: score={score:.6f} (VIOLATION)")
             else:
                 print(f"    OK   Step {step+1}/{max_steps}: score={score:.6f}, cumulative={cumulative:.6f}")
-    
+
     return violations
 
 def test_server_endpoint():
@@ -275,21 +275,21 @@ def test_server_endpoint():
     print("\n" + "="*70)
     print("TEST 5: Server Endpoint (FastAPI TestClient)")
     print("="*70)
-    
+
     violations = []
-    
+
     try:
         from fastapi.testclient import TestClient
         from server.app import app
-        
+
         client = TestClient(app)
-        
+
         for task_id in ['easy', 'medium', 'hard']:
             print(f"\n  Testing {task_id.upper()} via /step endpoint...")
-            
+
             r = client.post('/reset', json={'task_id': task_id})
             assert r.status_code == 200, f"Reset failed: {r.text}"
-            
+
             action = {
                 'verdict': 'request_changes',
                 'overall_comment': 'Found issues in the code that need to be addressed before approval.',
@@ -298,18 +298,18 @@ def test_server_endpoint():
                 'suggested_fixes': ['Fix the bug'],
                 'confidence_score': 0.7
             }
-            
+
             r = client.post('/step', json=action)
             assert r.status_code == 200, f"Step failed: {r.text}"
             result = r.json()
-            
-            # The reward could be a float or a dict
+
+
             reward = result['reward']
             if isinstance(reward, dict):
                 score = reward['total']
             else:
                 score = reward
-            
+
             if score <= 0.0 or score >= 1.0:
                 violations.append({
                     'test': 'server',
@@ -320,12 +320,12 @@ def test_server_endpoint():
                 print(f"    FAIL {task_id}: server score={score:.6f} (VIOLATION)")
             else:
                 print(f"    OK   {task_id}: server score={score:.6f}")
-                
+
     except ImportError:
         print("  SKIP: FastAPI not installed, skipping server test")
     except Exception as e:
         print(f"  ERROR: {e}")
-    
+
     return violations
 
 def main():
@@ -333,21 +333,21 @@ def main():
     print("  COMPREHENSIVE LOCAL VALIDATION TEST")
     print("  Testing Phase 2 Score Boundary Requirements")
     print("=" * 70 + "\n")
-    
+
     all_violations = []
-    
-    # Run all tests
+
+
     all_violations.extend(test_basic_scenarios())
     all_violations.extend(test_edge_cases())
     all_violations.extend(test_multi_step_accumulation())
     all_violations.extend(test_max_steps_penalty())
     all_violations.extend(test_server_endpoint())
-    
-    # Final report
+
+
     print("\n" + "="*70)
     print("FINAL TEST REPORT")
     print("="*70)
-    
+
     if all_violations:
         print(f"\nFAILED: {len(all_violations)} violation(s) found\n")
         print("Violations:")
@@ -372,3 +372,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+

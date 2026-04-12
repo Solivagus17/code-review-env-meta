@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from enum import Enum
 
-# --- Enums for Type Safety ---
+
 
 class DifficultyLevel(str, Enum):
     EASY   = 'easy'
@@ -22,7 +22,7 @@ class ReviewVerdict(str, Enum):
     COMMENT           = 'comment'
     NEEDS_MORE_INFO   = 'needs_more_info'
 
-# --- State & History Models ---
+
 
 class ReviewHistoryEntry(BaseModel):
     step:         int
@@ -46,13 +46,13 @@ class Observation(BaseModel):
     done:              bool = False
     cumulative_reward: float = 0.0
 
-# --- Action Models (Agent Output) ---
+
 
 class LineComment(BaseModel):
     line_number: int
     comment:     str
     severity:    SeverityLevel
-    category:    str  # 'bug'|'security'|'style'|'performance'|'logic'
+    category:    str
 
 class Action(BaseModel):
     verdict:           ReviewVerdict
@@ -62,7 +62,7 @@ class Action(BaseModel):
     confidence_score:  float = Field(ge=0.0, le=1.0, default=0.5)
     reasoning:         Optional[str] = None
 
-# --- Reward & Feedback Models ---
+
 
 class RewardBreakdown(BaseModel):
     verdict_accuracy:       float = 0.0

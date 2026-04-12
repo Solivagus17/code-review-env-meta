@@ -4,13 +4,13 @@ from tasks.task_easy import EasyTask
 from tasks.task_medium import MediumTask
 from tasks.task_hard import HardTask
 
-# Strict bounds for all scores — strictly inside (0, 1)
+
 SCORE_MIN = 0.001
 SCORE_MAX = 0.999
 
 def _strict_clamp(value: float) -> float:
     """Clamp a value to be strictly within (0, 1)."""
-    if value != value:  # NaN check
+    if value != value:
         return 0.5
     return max(SCORE_MIN, min(SCORE_MAX, value))
 
@@ -27,7 +27,7 @@ def load_task(task_id: str):
 class CodeReviewEnv:
     def __init__(self, task_id: str = 'easy'):
         self.task_id    = task_id
-        self.task       = load_task(task_id)       # Returns task fixture
+        self.task       = load_task(task_id)
         self.state_data = {}
         self.step_count = 0
         self.done       = False
@@ -63,41 +63,41 @@ class CodeReviewEnv:
         """Execute one review action. Returns (obs, reward, done, info)."""
         if self.done:
             raise ValueError('Environment is done. Call reset() first.')
-            
-        # Add history to state_data for grader to use
+
+
         self.state_data['history'] = [{'action_type': h.action_type} for h in self.history]
-        
-        # Get the absolute reward from the grader (this is ALREADY strictly clamped by grader)
+
+
         reward = self.task.grader.grade(action, self.state_data, self.step_count)
 
-        # Max steps exceeded penalty
+
         max_steps_exceeded = (self.step_count + 1) >= self.task.max_steps
         if max_steps_exceeded and not reward.is_terminal and action.verdict not in [ReviewVerdict.APPROVE, ReviewVerdict.REQUEST_CHANGES]:
             reward.is_terminal = True
             reward.total = _strict_clamp(reward.total - 0.10)
             reward.message += " (Max steps exceeded)"
 
-        # Strictly replace cumulative_reward instead of accumulating
-        # This prevents the sum from reaching > 1.0 logic failures!
+
+
         self.cumulative_reward = reward.total
-        
+
         self.step_count += 1
-        
+
         self.done = (
             reward.is_terminal or
             self.step_count >= self.task.max_steps or
             action.verdict in [ReviewVerdict.APPROVE, ReviewVerdict.REQUEST_CHANGES]
         )
-        
+
         entry = ReviewHistoryEntry(
             step=self.step_count, action_type=action.verdict,
             comment=action.overall_comment, reward=reward.total
         )
         self.history.append(entry)
-        
+
         obs  = self._build_observation()
         info = {
-            'step': self.step_count, 
+            'step': self.step_count,
             'cumulative_reward': self.cumulative_reward,
         }
         return obs, reward, self.done, info

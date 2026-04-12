@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+
 """
 Baseline inference script for CodeReviewEnv.
 Prints [START] / [STEP] / [END] structured output to stdout as required by the validator.
@@ -11,9 +11,9 @@ import time
 import requests
 from openai import OpenAI
 
-# --- Configuration ---
-# The validator injects API_BASE_URL (LiteLLM proxy) and API_KEY — always prefer those.
-# Fall back to HF inference API only when running locally.
+
+
+
 API_BASE_URL = os.environ.get('API_BASE_URL', 'https://api-inference.huggingface.co/v1')
 API_KEY      = os.environ.get('API_KEY') or os.environ.get('HF_TOKEN', '')
 ENV_BASE_URL = os.environ.get('ENV_BASE_URL', 'http://localhost:7860')
@@ -21,7 +21,7 @@ MODEL_NAME   = os.environ.get('MODEL_NAME', 'Qwen/Qwen2.5-72B-Instruct')
 
 print(f"[CONFIG] API_BASE_URL={API_BASE_URL} MODEL={MODEL_NAME}", flush=True)
 
-# --- LLM Client (uses validator's proxy when API_BASE_URL is injected) ---
+
 client = OpenAI(api_key=API_KEY, base_url=API_BASE_URL)
 
 SYSTEM_PROMPT = """You are a senior software engineer performing a code review.
@@ -89,10 +89,10 @@ Review History: {json.dumps(obs.get('review_history', []))}
 def run_task(task_id: str) -> float:
     """Run one full task episode and return the final score."""
 
-    # ── Required structured output: START ──────────────────────
+
     print(f"[START] task={task_id}", flush=True)
 
-    # Reset environment
+
     try:
         res = requests.post(
             f"{ENV_BASE_URL}/reset",
@@ -101,7 +101,7 @@ def run_task(task_id: str) -> float:
         )
         res.raise_for_status()
         reset_data = res.json()
-        # Handle both bare obs and wrapped {"observation": ...} format
+
         obs = reset_data.get('observation', reset_data)
     except Exception as e:
         print(f"[END] task={task_id} score=0.5 steps=0", flush=True)
@@ -112,7 +112,7 @@ def run_task(task_id: str) -> float:
     step_num  = 0
     final_score = 0.5
 
-    # Step loop
+
     while not done and step_num < max_steps:
         step_num += 1
 
@@ -128,18 +128,18 @@ def run_task(task_id: str) -> float:
             step_data = res.json()
 
             obs         = step_data.get('observation', obs)
-            reward      = float(step_data['reward'])          # plain float
+            reward      = float(step_data['reward'])
             done        = step_data.get('done', obs.get('done', False))
             final_score = obs.get('cumulative_reward', reward)
 
-            # ── Required structured output: STEP ───────────────
+
             print(f"[STEP] task={task_id} step={step_num} reward={reward:.4f}", flush=True)
 
         except Exception as e:
             print(f"[STEP] task={task_id} step={step_num} reward=0.5", flush=True)
             break
 
-    # ── Required structured output: END ────────────────────────
+
     print(f"[END] task={task_id} score={final_score:.4f} steps={step_num}", flush=True)
     return final_score
 
@@ -152,7 +152,7 @@ if __name__ == "__main__":
         scores[tid] = run_task(tid)
         time.sleep(1)
 
-    # Summary — also structured for easy parsing
+
     print(
         json.dumps({"type": "SUMMARY", "scores": scores, "model": MODEL_NAME}),
         flush=True,
